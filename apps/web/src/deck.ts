@@ -4,7 +4,8 @@ export type Action = 'done' | 'later' | 'skip' | 'delete' | 'undo' | 'reorder'
 export type Outcome = 'completed' | 'postponed' | 'skipped' | 'missed' | 'pending' | 'deleted'
 export type Visual = 'neutral' | 'walk' | 'read' | 'water' | 'focus' | 'stretch'
 export type Appearance = { day: Day; icon: Visual; photoId?: string }
-export type Task = { kind?: 'today' | 'habit'; icon?: Visual; photoId?: string; id: string; title: string; notes: string; minutes: number | null; weekdays: number[]; created: Day; through?: Day; archived: boolean }
+export type ScheduleVersion = {effectiveFrom:Day;weekdays:number[];title:string;notes:string;minutes:number|null;edited?:boolean}
+export type Task = {scheduleVersions?:ScheduleVersion[]; kind?: 'today' | 'habit'; icon?: Visual; photoId?: string; id: string; title: string; notes: string; minutes: number | null; weekdays: number[]; created: Day; through?: Day; archived: boolean }
 export type Event = { sequence?: number; id: string; action: Action; at: string; day: Day; order: number; target?: string }
 export type Card = { icon?: Visual; photoId?: string; appearances?: Appearance[]; id: string; taskId: string; title: string; notes: string; minutes: number | null; habit: boolean; day: Day; initialOrder: number; events: Event[] }
 export type Deck = { version: 1; tasks: Task[]; cards: Card[] }
@@ -48,17 +49,39 @@ export const pending = (deck: Deck, day = dayKey()) => deck.cards.filter(c => !t
 export function history(deck: Deck, day: Day, today = dayKey(), taskId = '') {
   return deck.cards.filter(c => (!taskId || c.taskId === taskId) && (c.day === day || c.events.some(e => e.day === day) || (!c.habit && c.day < day && !['completed', 'skipped', 'deleted'].includes(outcome(c, addDays(day, -1), today)))))
 }
+function sameSchedule(a:Pick<Task,'title'|'notes'|'minutes'|'weekdays'>,b:Pick<Task,'title'|'notes'|'minutes'|'weekdays'>){return a.title===b.title&&a.notes===b.notes&&a.minutes===b.minutes&&a.weekdays.slice().sort().join(',')===b.weekdays.slice().sort().join(',')}
+function scheduleVersion(task:Task,effectiveFrom:Day,edited=false):ScheduleVersion {return{effectiveFrom,weekdays:[...task.weekdays],title:task.title,notes:task.notes,minutes:task.minutes,edited}}
+export function scheduleOn(task:Task,day:Day):ScheduleVersion|undefined {return task.scheduleVersions?.filter(v=>v.effectiveFrom<=day).at(-1)}
+export function editEffectiveFrom(task:Task,today=dayKey()):Day {return addDays(task.through&&task.through>today?task.through:today,1)}
+export function pendingScheduleChange(task:Task,today=dayKey()){return task.scheduleVersions?.findLast(v=>v.edited&&v.effectiveFrom>today)?.effectiveFrom}
 export function roll(deck: Deck, today = dayKey()) {
+  const pairs=new Set(deck.cards.map(c=>JSON.stringify([c.taskId,c.day])))
+  let nextOrder=Math.max(0,...deck.cards.map(order))
   for (const task of deck.tasks.filter(t => !t.archived)) {
-    let day = task.through ? addDays(task.through, 1) : task.created
-    while (day <= today) {
-      const scheduled = isHabit(task) ? task.weekdays.includes(dateOf(day).getDay()) : day === task.created
-      if (scheduled && !deck.cards.some(c => c.taskId === task.id && c.day === day)) {
-        deck.cards.push({ id: uid(), taskId: task.id, title: task.title, notes: task.notes, minutes: task.minutes, icon: task.icon ?? 'neutral', photoId: task.photoId, habit: isHabit(task), day, initialOrder: Math.max(0, ...deck.cards.map(order)) + 1, events: [] })
+    // Legacy decisions through this cursor remain authoritative. Do not invent old schedules.
+    if(isHabit(task)){
+      const from=task.through?addDays(task.through,1):task.created
+      if(!task.scheduleVersions)task.scheduleVersions=[scheduleVersion(task,from)]
+      else if(!sameSchedule(task,task.scheduleVersions.at(-1)!)){
+        // An older app may preserve the new metadata but edit only the legacy fields.
+        // Its saved cursor freezes the past; its latest definition applies after that boundary.
+        task.scheduleVersions=[...task.scheduleVersions.filter(v=>v.effectiveFrom<from),scheduleVersion(task,from,true)]
       }
-      day = addDays(day, 1)
     }
-    task.through = !task.through || task.through < today ? today : task.through
+    const ensure=(day:Day)=>{
+      if(day<task.created||pairs.has(JSON.stringify([task.id,day])))return
+      const version=isHabit(task)?scheduleOn(task,day):undefined
+      const scheduled=isHabit(task)?!!version?.weekdays.includes(dateOf(day).getDay()):day===task.created
+      if(!scheduled)return
+      deck.cards.push({id:uid(),taskId:task.id,title:version?.title??task.title,notes:version?.notes??task.notes,minutes:version?version.minutes:task.minutes,icon:task.icon??'neutral',photoId:task.photoId,habit:isHabit(task),day,initialOrder:++nextOrder,events:[]})
+      pairs.add(JSON.stringify([task.id,day]))
+    }
+    let day=task.through?addDays(task.through,1):task.created
+    while(day<=today){ensure(day);day=addDays(day,1)}
+    // A cursor is an optimization, not proof that a known scheduled occurrence exists.
+    // Existing completed/skipped occurrences satisfy the pair check and are never regenerated.
+    ensure(today)
+    task.through=!task.through||task.through<today?today:task.through
   }
 }
 export function saveTask(deck: Deck, task: Task, today = dayKey()) {
@@ -71,7 +94,11 @@ export function saveTask(deck: Deck, task: Task, today = dayKey()) {
   if (existing) {
     if (isHabit(existing) !== isHabit(task)) throw new Error('Create a new task to change its type; existing history is preserved.')
     const through = existing.through
-    Object.assign(existing, task, { through, title: task.title.trim() })
+    const versions=existing.scheduleVersions
+    const changed=isHabit(existing)&&(existing.title!==task.title.trim()||existing.notes!==task.notes||existing.minutes!==task.minutes||existing.weekdays.slice().sort().join(',')!==task.weekdays.slice().sort().join(','))
+    const effective=editEffectiveFrom(existing,today)
+    Object.assign(existing, task, { through, scheduleVersions:versions, title: task.title.trim() })
+    if(changed)existing.scheduleVersions=[...(versions??[]).filter(v=>v.effectiveFrom!==effective),scheduleVersion(existing,effective,true)].sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom))
     if (!isHabit(task)) deck.cards.filter(c => c.taskId === task.id && !terminal(c)).forEach(c => Object.assign(c, { title: task.title.trim(), notes: task.notes, minutes: task.minutes }))
     for (const card of pending(deck, today).filter(c => c.taskId === task.id)) {
       const before = appearance(card, today)
@@ -79,7 +106,7 @@ export function saveTask(deck: Deck, task: Task, today = dayKey()) {
         card.appearances = [...(card.appearances ?? []).filter(a => a.day !== today), {day: today, icon: task.icon!, photoId: task.photoId}]
       }
     }
-  } else deck.tasks.push({ ...task, created: today, title: task.title.trim() })
+  } else {const fresh={...task,created:today,through:undefined,title:task.title.trim(),scheduleVersions:undefined as ScheduleVersion[]|undefined};if(isHabit(fresh))fresh.scheduleVersions=[scheduleVersion(fresh,today)];deck.tasks.push(fresh)}
   roll(deck, today)
 }
 function nextSequence(deck:Deck){return Math.max(0,...deck.cards.flatMap(c=>c.events.map(e=>e.sequence??0)))+1}
@@ -143,6 +170,7 @@ export function decode(raw: string): Deck {
   const validPhoto = (v: unknown) => v === undefined || (typeof v === 'string' && v.length > 0 && v.length < 200)
   if (!d.tasks.every(t => (t.kind === undefined || t.kind === 'today' || t.kind === 'habit') && validVisual(t.icon) && validPhoto(t.photoId)) ||
       !d.cards.every(c => validVisual(c.icon) && validPhoto(c.photoId) && (c.appearances === undefined || (Array.isArray(c.appearances) && c.appearances.every(a => validDay(a.day) && validVisual(a.icon) && validPhoto(a.photoId)))))) throw new Error('Saved image metadata is unreadable. Your stored data has not been changed.')
+  if(!d.tasks.every(t=>t.scheduleVersions===undefined||(isHabit(t)&&Array.isArray(t.scheduleVersions)&&t.scheduleVersions.length>0&&t.scheduleVersions.every((v,i)=>validDay(v.effectiveFrom)&&(i===0||t.scheduleVersions![i-1].effectiveFrom<v.effectiveFrom)&&string(v.title)&&string(v.notes)&&(v.minutes===null||(Number.isInteger(v.minutes)&&v.minutes>=1&&v.minutes<=1440))&&Array.isArray(v.weekdays)&&v.weekdays.length>0&&new Set(v.weekdays).size===v.weekdays.length&&v.weekdays.every(n=>Number.isInteger(n)&&n>=0&&n<=6)&&(v.edited===undefined||typeof v.edited==='boolean')))))throw new Error('Saved schedule history is unreadable. Your stored data has not been changed.')
   return migrate(d)
 }
 export function load(storage: Pick<Storage, 'getItem'>, today = dayKey()): Deck { const raw = storage.getItem(STORAGE_KEY); const deck = raw === null ? seed(today) : decode(raw); roll(deck, today); return deck }

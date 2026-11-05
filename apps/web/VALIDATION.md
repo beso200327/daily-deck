@@ -69,3 +69,13 @@ The exact UI copy is: “Only the photo you select is added. It stays on this de
 - [Five actual Chromium recordings and inspected frames](../../docs/evidence/later-refinement/README.md) use synthetic data only. Native browser events report 230 ms outward and 480 ms return in every recording; all busy frames keep the main node mounted and opaque, all three list phases occur, and scroll values remain constant. Outward/return/settling frames for four/ten items and the scrolled case were opened and inspected, as were extracts from one/two-item videos.
 - Native source, storage schemas, history, image storage and entitlements are unchanged. Xcode project/resource validation passed. No real Safari/iPhone, installed PWA or native widget execution is verified by these Chromium recordings.
 - No manual deployment. A normal GitHub push may trigger the existing owner-managed Vercel automatic deployment.
+
+## Recurring scheduling reconciliation — 2026-11-05
+
+- Final full Playwright run: **131 passed, 11 intentional viewport-specific skips (142 cases)** on Chromium desktop and iPhone-sized/touch projects.
+
+- Production TypeScript/Vite build passed; **67 model/storage tests passed** across eight files. Added coverage includes selected/excluded weekday creation, inherited cursors, missing known occurrences, completed/skipped identity, dated revisions/backfill, legacy migration, backward-clock edits, malformed schedules, backup compatibility, shared-lock ordering, storage failure, midnight and both DST transitions.
+- Browser scheduling cases cover immediate creation across Today/sidebar/counts/Progress/Widget preview, selected-day reopening, repeated reloads, completed/skipped preservation, exact local midnight, restored pages without timer execution, edit effective-date text and reconciliation waiting for the mutation lock. The existing Tokyo/New York/Tokyo travel regression verifies unchanged recorded cards and no duplicate habit/date pairs.
+- The additive version-1 schedule ledger preserves existing cards/events/images and unknown legacy historical decisions. No local data reset or new dependencies. Normal edits remain effective tomorrow, with the exact date displayed; backward clock changes preserve already-reconciled dates.
+- Native source/project/widget/tests remain unchanged. Xcode project/resource validator passed. Actual Safari, installed PWA, Xcode build and native widget execution remain unverified in this Linux/Chromium environment.
+- No manual deployment. A normal GitHub push can trigger the owner's existing Vercel auto-deployment.
