@@ -14,7 +14,7 @@ Main actions explicitly use `type="button"`. App state updates after the card's 
 
 ## Compact queue sizing and access
 
-Each compact card is **60 px** tall with an **8 px** gap. At normal desktop height, the scroll area is `5.5 × 60 + 5 × 8 = 370 px`: five complete cards and half the sixth. The heading and count sit outside it. Actual height is the minimum of content height, 370 px, and a reduced short-window budget (with a small usable minimum). Fewer than six items use only their content height, with no unnecessary scrolling.
+Each compact card is **60 px** tall with an **8 px** gap. Actual untransformed row height and CSS gap are measured by `ResizeObserver`, so density changes keep the half-card calculation accurate. At normal desktop height, the scroll area is `3.5 × 60 + 3 × 8 = 234 px`: three complete cards and the upper half of the fourth (replacing the older five-and-a-half requirement). The heading and count sit outside it. Actual height is the minimum of content height, 234 px, and a reduced short-window budget (with a small usable minimum). Fewer than four items use only their content height, with no unnecessary scrolling.
 
 All items show title, explicit task/habit label, current-item dot/“Up next” label where applicable, and an accessible Edit button. Mouse wheel/trackpad scroll normally. Focus the region to use Arrow Up/Down, Page Up/Down, Home/End; Tab reaches editing controls. The mobile sidebar remains hidden as before; uploaded Habits photos use a responsive 2:1 rounded cover instead of the icon badge.
 
@@ -75,7 +75,7 @@ Choose task fixtures **9/10/11** and habit fixtures **4/5/6**, then **Open isola
 
 ## Evidence and regression commands
 
-[Desktop queue](evidence/desktop-queue.png) shows the five-and-a-half-card viewport with 12 pending items (3 habits + 9 tasks), distinct from billing usage. [Actual Later screencast](evidence/later-desktop.webm) and [sampled frame sequence](evidence/README.md) show outgoing, behind and settling phases. The synthetic fixture contains no user data.
+[Desktop queue](evidence/later-refinement/10-items-queue.png) shows the three-and-a-half-card viewport with 10 pending items (3 habits + 7 tasks), distinct from billing usage. [Actual Later screencast](evidence/later-refinement/10-items.webm) and [sampled frame sequence](evidence/later-refinement/README.md) show outward, return and settling phases; recordings also cover 1, 2 and 4 items and a scrolled 10-item list. The synthetic fixture contains no user data.
 
 ```sh
 cd apps/web
@@ -83,9 +83,16 @@ npm test
 npm run build
 npm run test:e2e
 # With :4173 already serving the final build; requires Chromium and ffmpeg:
-node tests/capture-sidebar-evidence.mjs
+node tests/capture-later-refinement.mjs
 ```
 
-The browser harness starts a separate explicit preview server on :4174 for the simulated-billing tests. It uses fresh contexts; owner browser data is never opened. The suite covers 0/1/5/6/12 queue sizes, a shorter window, wheel/keyboard scrolling, stable DOM identities, no navigation, repeated actions/Undo while scrolled, both release directions, photos, Free boundaries, import/draft preservation, simulations and isolation. Chromium emulation is not real iPhone/Safari or native WidgetKit verification.
+The browser harness starts a separate explicit preview server on :4174 for the simulated-billing tests. It uses fresh contexts; owner browser data is never opened. The suite covers 0/1/2/4/10 queue sizes, with retained repeated-action/Undo coverage at 12, a shorter window, wheel/keyboard scrolling, stable DOM identities, no navigation, repeated actions/Undo while scrolled, both release directions, photos, Free boundaries, import/draft preservation, simulations and isolation. Chromium emulation is not real iPhone/Safari or native WidgetKit verification.
 
-Final validation: production build passed; **51 model tests passed**; the complete browser run had **103 passed and nine intentional skips (112 cases)**. Native project/resource validation also passed, with no native source changes. No manual deployment; a normal GitHub push may trigger the owner's existing automatic Vercel integration.
+Final validation: production build and **51 model tests** passed; the current complete browser run had **115 passed and 11 intentional skips (126 cases)**. Native project/resource validation passed, with no native source changes. No manual deployment; a normal GitHub push may trigger the owner's existing automatic Vercel integration.
+
+
+## Refined shared motion clock
+
+Later uses **230 ms outward** and **480 ms return/settle**, configured centrally in `motion.ts`. At the outward endpoint, only a narrow edge overlaps the stack; only then does the moving card change stacking layer. A CSS keyframe path carries the same opaque node behind the deck with a gentle lower arc. The next real card finishes promotion during that return, rather than jumping forward before it. Button and gesture actions use this same sequence.
+
+The compact card lifts before the one shared persisted reorder. During return it travels with a raised shadow at z-index 30, while other cards slide upward. It reaches its destination before its 90 ms visual settle removes the raised shadow. An offscreen destination is reached through the clipped bottom edge; the scroll port is never moved by the action. Reading order updates after the motion, and duplicate input/Undo remain blocked until the shared sequence completes. Reduced motion removes the curved travel and uses brief feedback.
