@@ -6,9 +6,9 @@ export default defineConfig({plugins:[{
   name:'daily-deck-offline-shell',
   generateBundle(_options,bundle) {
     const assets=Object.keys(bundle).filter(name=>!name.endsWith('.map'))
-    const staticInputs=['index.html','public/manifest.webmanifest','public/icon.svg','public/pwa-192.png','public/pwa-512.png','public/apple-touch-icon.png'].map(path=>readFileSync(path).toString('base64')).join('')
+    const staticInputs=['index.html','public/manifest.webmanifest','public/icon.svg','public/pwa-192.png','public/pwa-512.png','public/apple-touch-icon.png','public/THIRD-PARTY-NOTICES.txt'].map(path=>readFileSync(path).toString('base64')).join('')
     const fingerprint=createHash('sha256').update(staticInputs+JSON.stringify(assets)+JSON.stringify(Object.values(bundle).map(b=>b.type==='chunk'?b.code:b.source))).digest('hex').slice(0,16)
-    const urls=['/',...assets.filter(name=>name!=='index.html').map(name=>`/${name}`),'/manifest.webmanifest','/icon.svg','/pwa-192.png','/pwa-512.png','/apple-touch-icon.png']
+    const urls=['/',...assets.filter(name=>name!=='index.html').map(name=>`/${name}`),'/manifest.webmanifest','/icon.svg','/pwa-192.png','/pwa-512.png','/apple-touch-icon.png','/THIRD-PARTY-NOTICES.txt']
     this.emitFile({type:'asset',fileName:'sw.js',source:`
 const CACHE='daily-deck-shell-${fingerprint}';
 const URLS=${JSON.stringify(urls)};

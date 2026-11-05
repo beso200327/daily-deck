@@ -34,6 +34,14 @@ export const putEditedPhoto=(id:string,photo:EditedPhoto)=>transact([STORE,EDITS
  tx.objectStore(EDITS).put({source:photo.source,width:photo.width,height:photo.height,crop:photo.crop},id)
  return()=>undefined
 })
+// Prefer bitmap/offscreen processing; retain a canvas fallback for older browsers.
+function raster(width:number,height:number):HTMLCanvasElement|OffscreenCanvas {
+ if(typeof OffscreenCanvas!=='undefined')return new OffscreenCanvas(width,height)
+ const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;return canvas
+}
+function encoded(canvas:HTMLCanvasElement|OffscreenCanvas,type:string,quality?:number):Promise<Blob|null>{
+ return 'convertToBlob' in canvas?canvas.convertToBlob({type,quality}):new Promise(resolve=>canvas.toBlob(resolve,type,quality))
+}
 async function imageFrom(blob:Blob) {
  const url=URL.createObjectURL(blob),image=new Image()
  try{image.src=url;await image.decode();if(!image.naturalWidth||!image.naturalHeight)throw new Error();return image}
@@ -44,10 +52,15 @@ export async function preparePhoto(file:File):Promise<PhotoEdit> {
  if(!['image/jpeg','image/png','image/webp','image/avif'].includes(file.type))throw new Error('Choose a JPEG, PNG, WebP, or AVIF image. Export HEIC photos as JPEG first.')
  if(file.size>20*1024*1024)throw new Error('Choose a photo smaller than 20 MB.')
  if(!file.size)throw new Error('This image is empty. Choose another photo.')
- // Only this explicitly selected file is read. Keep its source pixels for later non-destructive edits.
- const source=new Blob([file],{type:file.type}),image=await imageFrom(source)
+ // Read only the explicitly selected file. Retain a normalized source without EXIF/GPS metadata.
+ const image=await imageFrom(file)
  const width=image.naturalWidth,height=image.naturalHeight
  if(width*height>48_000_000)throw new Error('Choose an image with fewer than 48 megapixels.')
+ const canvas=raster(width,height)
+ const ctx=canvas.getContext('2d') as CanvasRenderingContext2D|OffscreenCanvasRenderingContext2D|null;if(!ctx)throw new Error('Your browser could not prepare this photo.')
+ ctx.drawImage(image,0,0)
+ const source=await encoded(canvas,'image/png')
+ if(!source)throw new Error('This photo could not be prepared. Choose another photo.')
  return {source,width,height,crop:{...defaultCrop}}
 }
 export async function getPhotoEdit(id:string):Promise<PhotoEdit> {
@@ -60,20 +73,32 @@ export async function getPhotoEdit(id:string):Promise<PhotoEdit> {
  return {source,width:image.naturalWidth,height:image.naturalHeight,crop:{...defaultCrop}}
 }
 export async function renderPhoto(photo:PhotoEdit):Promise<EditedPhoto> {
- const image=await imageFrom(photo.source),crop=clampCrop(photo.width,photo.height,photo.crop),rect=cropRect(photo.width,photo.height,crop)
+ const image=typeof createImageBitmap==='function'?await createImageBitmap(photo.source,{imageOrientation:'from-image'}):await imageFrom(photo.source)
+ try{const crop=clampCrop(photo.width,photo.height,photo.crop),rect=cropRect(photo.width,photo.height,crop)
  let width=Math.max(2,Math.floor(Math.min(1200,rect.width)/2)*2)
  for(let attempt=0;attempt<7;attempt++){
-  const canvas=document.createElement('canvas');canvas.width=width;canvas.height=width/2
-  const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Your browser could not prepare this photo.')
+  const canvas=raster(width,width/2)
+  const ctx=canvas.getContext('2d') as CanvasRenderingContext2D|OffscreenCanvasRenderingContext2D|null;if(!ctx)throw new Error('Your browser could not prepare this photo.')
   ctx.fillStyle='#faf6ed';ctx.fillRect(0,0,canvas.width,canvas.height)
   // HTMLImageElement decoding honors EXIF orientation; the new JPEG strips source metadata.
   ctx.drawImage(image,rect.x,rect.y,rect.width,rect.height,0,0,canvas.width,canvas.height)
-  const rendered=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,'image/jpeg',Math.max(.55,.86-attempt*.05)))
+  const rendered=await encoded(canvas,'image/jpeg',Math.max(.55,.86-attempt*.05))
   if(!rendered)throw new Error('This image could not be cropped. Please try another.')
   if(rendered.size<=1024*1024)return {...photo,crop,rendered}
   width=Math.max(2,Math.floor(width*.8/2)*2)
  }
  throw new Error('This crop is still too large. Please choose a smaller image.')
+ }finally{if('close' in image)image.close()}
 }
 // Kept for callers that need a default compressed crop; interactive selection uses the editor first.
 export async function compressPhoto(file:File):Promise<Blob>{return (await renderPhoto(await preparePhoto(file))).rendered}
+
+export type StoredPhoto={id:string;rendered:Blob;edit?:PhotoEdit}
+export const listPhotos=()=>transact<StoredPhoto[]>([STORE,EDITS],'readonly',tx=>{
+ const keys=tx.objectStore(STORE).getAllKeys(),photos=tx.objectStore(STORE).getAll(),edits=tx.objectStore(EDITS).getAll(),editKeys=tx.objectStore(EDITS).getAllKeys()
+ return()=>keys.result.map((id,i)=>({id:String(id),rendered:photos.result[i],edit:edits.result[editKeys.result.indexOf(id)]}))
+})
+export const addPhotos=(photos:StoredPhoto[])=>transact([STORE,EDITS],'readwrite',tx=>{
+ for(const photo of photos){tx.objectStore(STORE).add(photo.rendered,photo.id);if(photo.edit)tx.objectStore(EDITS).add(photo.edit,photo.id)}return()=>undefined
+})
+export const clearPhotos=()=>transact([STORE,EDITS],'readwrite',tx=>{tx.objectStore(STORE).clear();tx.objectStore(EDITS).clear();return()=>undefined})

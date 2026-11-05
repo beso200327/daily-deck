@@ -43,6 +43,24 @@
 			isa = PBXBuildFile;
 			productRef = 282D9E003E8E7CAD7C11BE10;
 		};
+		A4CC6BC01A927E2A78FD3BEC = {
+			isa = PBXFileReference;
+			lastKnownFileType = text.xml;
+			path = DailyDeck/Resources/PrivacyInfo.xcprivacy;
+			sourceTree = "<group>";
+		};
+		AD5C073AD2111EA527DFCCB9 = {
+			isa = PBXGroup;
+			name = "DailyDeckWidget privacy";
+			children = (
+				A4CC6BC01A927E2A78FD3BEC,
+			);
+			sourceTree = "<group>";
+		};
+		F848231702A8AA79FC60C549 = {
+			isa = PBXBuildFile;
+			fileRef = A4CC6BC01A927E2A78FD3BEC;
+		};
 		1FA716FB94F427DD451C8614 = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -63,6 +81,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F848231702A8AA79FC60C549,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -207,6 +226,18 @@
 			isa = PBXBuildFile;
 			productRef = A24C7520B5E044C696CBAA4C;
 		};
+		68F0CB66BFE6D8F5F9ED3A4B = {
+			isa = PBXGroup;
+			name = "DailyDeck privacy";
+			children = (
+				A4CC6BC01A927E2A78FD3BEC,
+			);
+			sourceTree = "<group>";
+		};
+		04B4BF758CBF8BA6FCE1F711 = {
+			isa = PBXBuildFile;
+			fileRef = A4CC6BC01A927E2A78FD3BEC;
+		};
 		8BF729FFE074CAEE622C0292 = {
 			isa = PBXFileReference;
 			lastKnownFileType = folder.assetcatalog;
@@ -247,6 +278,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				04B4BF758CBF8BA6FCE1F711,
 				214FAD66617094FC1E2341C1,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -523,7 +555,9 @@
 			isa = PBXGroup;
 			children = (
 				9AE702BDD7A182BD3AEA0248,
+				AD5C073AD2111EA527DFCCB9,
 				974E8D0D1BAEBA16841B4008,
+				68F0CB66BFE6D8F5F9ED3A4B,
 				C58AC9780A4F28E1D1224859,
 				D94ECC230D8D49CD8414204F,
 				158EFF22A6EF5F98E381D118,

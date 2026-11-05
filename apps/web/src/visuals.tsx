@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import { BookOpen, Droplets, Footprints, Leaf, CircleDot, Layers } from 'lucide-react'
 import type { Visual } from './deck'
 import { getPhoto } from './photos'
@@ -6,7 +6,7 @@ export const visualIcons = {neutral: Layers, walk: Footprints, read: BookOpen, w
 export function TaskVisual({icon = 'neutral', photoId, draft, small = false}: {icon?: Visual; photoId?: string; draft?: Blob; small?: boolean}) {
   const [source, setSource] = useState<{key: string | Blob; url: string} | null>(null)
   const [failed, setFailed] = useState(false)
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false; let url: string | undefined
     setFailed(false)
     async function read() {

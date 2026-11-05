@@ -60,7 +60,7 @@ There is no guaranteed background process at exactly midnight: the app checks on
 
 The widget shows the next pending title and remaining count. **Done** and **Later** use native iOS 17 `Button(intent:)` interactions. Widgets do **not** support swipe gestures. Tapping the widget background opens the Today tab, even if you previously viewed Progress. Widget gallery previews use sample data without writing to the shared store. Add-widget instructions also appear under the app's Today info button.
 
-The app and extension share `deck-v1.json` inside the App Group. Each operation reloads the latest file while holding a cross-process `flock`, then writes atomically. The widget validates the rendered occurrence ID, revision, and local date inside that transaction. Repeated or stale taps cannot complete the replacement card or overwrite an app action. Both sides request WidgetKit reloads. iOS may briefly show stale widget content, especially while locked or before first unlock. Protected data is available after the first unlock. There is no cloud sync, export, or cross-device backup feature; do not delete the app if you need its local history.
+The app and extension share `deck-v1.json` inside the App Group. Each operation reloads the latest file while holding a cross-process `flock`, then writes atomically. The widget validates the rendered occurrence ID, revision, and local date inside that transaction. Repeated or stale taps cannot complete the replacement card or overwrite an app action. Both sides request WidgetKit reloads. iOS may briefly show stale widget content, especially while locked or before first unlock. Protected data is available after the first unlock. The native app has no cloud sync, export, or cross-device backup feature; OS-managed device backups may still include its files. The separate web app now supports user-controlled JSON backups; do not delete the app if you need its local history.
 
 ## Tests
 
@@ -95,3 +95,6 @@ These checks do not replace compiling SwiftUI/WidgetKit with the iOS SDK. Before
 - `scripts`: deterministic Xcode project generation and validation helpers.
 
 See `VALIDATION.md` for checks actually performed in the implementation environment and remaining native validation.
+
+
+Launch-readiness audit: [docs/launch-readiness.md](docs/launch-readiness.md) records bounded code/test evidence, owner decisions and unresolved release/legal checks. [Operations](docs/operations.md) includes real-device, privacy-report, recovery and reviewer steps. The native targets now package an explicit privacy baseline; Xcode archive/API/SDK verification remains required. Development legal drafts are not published policies. The current source is free and accountless; the owner's proposed subscription is not implemented.

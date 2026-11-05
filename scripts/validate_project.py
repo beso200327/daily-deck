@@ -86,3 +86,16 @@ for image in json.loads((icon/'Contents.json').read_text())['images']: assert (i
 assert len(list((ROOT/'DailyDeck/App').glob('*.swift'))) == 3
 assert len(list((ROOT/'DailyDeck/Widget').glob('*.swift'))) == 1
 print('PASS: OpenStep project parsing, three targets with native XCTest wiring, source/resource paths, embedded extension, local package wiring, matching App Groups, plists, scheme, icon, and deterministic regeneration.')
+
+# Both executable targets include the declared privacy baseline. Xcode archive review remains required.
+privacy_path = ROOT/'DailyDeck/Resources/PrivacyInfo.xcprivacy'
+privacy = plistlib.loads(privacy_path.read_bytes())
+assert privacy['NSPrivacyTracking'] is False
+assert privacy['NSPrivacyCollectedDataTypes'] == []
+assert privacy['NSPrivacyAccessedAPITypes'] == []
+privacy_refs = {key for key, obj in objects.items() if obj.get('path') == 'DailyDeck/Resources/PrivacyInfo.xcprivacy'}
+privacy_builds = {key for key, obj in objects.items() if obj.get('isa') == 'PBXBuildFile' and obj.get('fileRef') in privacy_refs}
+for target in (obj for obj in objects.values() if obj.get('isa') == 'PBXNativeTarget' and obj.get('productType') in ['com.apple.product-type.application', 'com.apple.product-type.app-extension']):
+    resource_phases = [objects[key] for key in target['buildPhases'] if objects[key]['isa'] == 'PBXResourcesBuildPhase']
+    assert any(privacy_builds.intersection(phase['files']) for phase in resource_phases), 'Missing target privacy manifest'
+print('Privacy baseline is packaged in app and widget targets; archive SDK report still requires Xcode.')

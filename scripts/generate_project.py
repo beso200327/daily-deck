@@ -47,7 +47,9 @@ for name, folder, extension, bundle, plist, ent in [
     products.append(prod)
     dep = add(name+'core', isa='XCSwiftPackageProductDependency', package=package, productName='DailyDeckCore')
     lib = add(name+'corebuild', isa='PBXBuildFile', productRef=dep)
-    resourcebuilds = []
+    privacy = add('privacy', isa='PBXFileReference', lastKnownFileType='text.xml', path='DailyDeck/Resources/PrivacyInfo.xcprivacy', sourceTree='<group>')
+    sourcegroups.append(add(name+'privacygroup', isa='PBXGroup', name=name+' privacy', children=[privacy], sourceTree='<group>'))
+    resourcebuilds = [add(name+'privacybuild', isa='PBXBuildFile', fileRef=privacy)]
     if extension == 'app':
         assets = add('assets', isa='PBXFileReference', lastKnownFileType='folder.assetcatalog', path='DailyDeck/Resources/Assets.xcassets', sourceTree='<group>')
         sourcegroups.append(add('assetsgroup', isa='PBXGroup', name='Resources', children=[assets], sourceTree='<group>'))
