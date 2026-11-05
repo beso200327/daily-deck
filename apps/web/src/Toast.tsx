@@ -15,7 +15,7 @@ export function Toast({toast,dismiss,undo,disabled}:{toast:ToastMessage;dismiss:
    const vv=visualViewport,top=(vv?.offsetTop??0)+Math.max(12,parseFloat(getComputedStyle(el).getPropertyValue('--safe-top'))||0),height=vv?.height??innerHeight
    const nav=matchMedia('(max-width:700px)').matches?document.querySelector<HTMLElement>('.navigation')?.getBoundingClientRect():null
    const bounds=el.getBoundingClientRect(),bottom=nav?.top??((vv?.offsetTop??0)+height-12)
-   const blocked=[...document.querySelectorAll<HTMLElement>('.deck-actions,.deck-options,.preview-actions,.form-actions,.add-task,.undo-button,.primary,.card-top button,.update-banner button,.manage-tasks')].map(target=>target.getBoundingClientRect()).filter(r=>r.width&&r.height&&r.right>bounds.left&&r.left<bounds.right)
+   const blocked=[...document.querySelectorAll<HTMLElement>('.deck-actions,.deck-options,.preview-actions,.form-actions,.add-task,.undo-button,.primary,.card-top button,.update-banner button,.manage-tasks,.page-footer button,.pwa-controls button,.nav-bottom button')].map(target=>target.getBoundingClientRect()).filter(r=>r.width&&r.height&&r.right>bounds.left&&r.left<bounds.right)
    const candidates=[bottom-bounds.height-12,top,...blocked.flatMap(r=>[r.top-bounds.height-12,r.bottom+12])].filter(y=>y>=top&&y+bounds.height<=bottom-8).sort((a,b)=>b-a)
    const y=candidates.find(y=>blocked.every(r=>y>=r.bottom||y+bounds.height<=r.top))??top
    el.style.top=`${Math.max(top,y)}px`

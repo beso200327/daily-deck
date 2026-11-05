@@ -15,7 +15,7 @@ npm run dev
 Open the local address Vite prints. To use a different device, use the eventual HTTPS Vercel URL, or Vite's network address on the same LAN if your network/firewall permits it. Production output is static; there is no app server or API.
 
 ```sh
-npm test             # 43 actual model tests
+npm test             # 51 actual model tests
 npm run build        # TypeScript check + optimized production assets
 npm run preview      # serve the production build locally
 ```
@@ -86,7 +86,7 @@ CHROMIUM_PATH="$(node -e "console.log(require('playwright').chromium.executableP
 
 `CHROMIUM_PATH` must point to the executable, not a cache directory.
 
-Playwright starts a production preview server automatically. The suite contains 82 cases across both projects (three desktop-only touch/pinch cases are intentionally skipped; those cases execute in the mobile project). It covers desktop (1440 px), Chromium with an iPhone-sized touch viewport, pointer and real touch gestures, CRUD, reordering, skip/undo, reload persistence, historical integrity and filters, simulated local-midnight rollover, corrupt-data preservation, additive legacy-data migration, IndexedDB photo compression/replace/remove/reload and failure handling, real next-card DOM retention, zero/one/two-card transitions and duplicate-action guards, PWA offline reopening and explicit update consent, focus/Escape/keyboard interaction, reduced motion, and overflow at 320, 375, 390, 430, 768, 1024 px and desktop. New checks cover crop metadata persistence/re-editing/cancel, EXIF orientation, legacy image-store migration, real touch pinch, keyboard-sized viewport changes, toast timing/pause/replacement, and transition-end ordering. Screenshots are produced under ignored `test-results/`. Chromium device emulation does not verify real iPhone Safari or native widget behavior.
+Playwright starts a production preview server automatically. The suite contains 112 cases across both projects (three desktop-only touch/pinch cases run in the mobile project; six desktop-sidebar cases are intentionally skipped in the mobile project). It covers desktop (1440 px), Chromium with an iPhone-sized touch viewport, pointer and real touch gestures, CRUD, reordering, skip/undo, reload persistence, historical integrity and filters, simulated local-midnight rollover, corrupt-data preservation, additive legacy-data migration, IndexedDB photo compression/replace/remove/reload and failure handling, real next-card DOM retention, zero/one/two-card transitions and duplicate-action guards, PWA offline reopening and explicit update consent, focus/Escape/keyboard interaction, reduced motion, and overflow at 320, 375, 390, 430, 768, 1024 px and desktop. New checks cover crop metadata persistence/re-editing/cancel, EXIF orientation, legacy image-store migration, real touch pinch, keyboard-sized viewport changes, toast timing/pause/replacement, and transition-end ordering. Screenshots are produced under ignored `test-results/`. Chromium device emulation does not verify real iPhone Safari or native widget behavior.
 
 ## Manual Vercel import from GitHub
 
@@ -122,4 +122,11 @@ Deletion clears this browser's task/history data and both image stores, leaving 
 
 Runtime open-source notices are reachable from About and cached for offline reading. Production Vercel configuration adds a restrictive CSP; live hosting headers/features/logs still require the owner's dashboard/response check. The unused Vercel CLI is removed; import settings above are unchanged.
 
-See [launch-readiness audit](../../docs/launch-readiness.md) and [operations/device checklist](../../docs/operations.md). Legal drafts are outside `apps/web` and are **not final published policies**. Operator identity/contact, minor/market review, actual hosted privacy settings, native/device checks and current official-source verification remain release blockers. A future USD 3.99/month unlimited plan is documented as pending; no subscription or free-use limit is implemented by this audit.
+See [launch-readiness audit](../../docs/launch-readiness.md) and [operations/device checklist](../../docs/operations.md). Legal drafts are outside `apps/web` and are **not final published policies**. Operator identity/contact, minor/market review, actual hosted privacy settings, native/device checks and current official-source verification remain release blockers. No live subscription or payment is implemented. The latest prototype policy is 10 active incomplete one-time tasks plus five active habits; an allowance gate preserves drafts. Isolated preview builds offer explicitly simulated Free/Pro testing only. See the guide below.
+
+
+## Compact desktop queue and prototype plans
+
+See [the testing guide](../../docs/desktop-sidebar-and-plan-testing.md) for the desktop diagnosis/evidence, compact queue sizing, exact 10-task/5-habit counting, isolated 9/10/11-task and 4/5/6-habit fixtures, preview-only simulated upgrades and expiry, photo confirmation/replacement, and remaining real-device/billing-provider checks. Routine Done/Later toasts are replaced by continuous animation, live counts and nonvisual announcements; persistent Undo remains.
+
+Production remains `npm run build` → `dist`. Test tools require a local dev server or an explicit `VITE_ENABLE_TEST_BILLING=true npm run build -- --mode preview --outDir dist-test`; they are absent from a normal production build. Do not deploy `dist-test`. There is no live checkout, price or trusted paid entitlement; browser-local gating is prototype behavior and can be bypassed by modifying client storage/code.

@@ -7,7 +7,7 @@ import { ImageEditor } from './ImageEditor'
 import * as D from './deck'
 import type { Task, Visual } from './deck'
 const weekNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-export function Editor({task,habit,exists,close,save,remove,error,busy}: {task: Task; habit: boolean; exists: boolean; close: () => void; save: (task: Task) => Promise<boolean>; remove: () => Promise<void>; error: string; busy: boolean}) {
+export function Editor({task,habit,exists,close,save,remove,error,busy,usage,unlimited}: {task: Task; habit: boolean; exists: boolean; close: () => void; save: (task: Task) => Promise<boolean>; remove: () => Promise<void>; error: string; busy: boolean;usage:{tasks:number;habits:number};unlimited:boolean}) {
   const [value, setValue] = useState(task)
   const [kind, setKind] = useState<'today' | 'habit'>(habit ? 'habit' : 'today')
   const [minutes, setMinutes] = useState(task.minutes?.toString() ?? '')
@@ -15,6 +15,7 @@ export function Editor({task,habit,exists,close,save,remove,error,busy}: {task: 
   const [draft, setDraft] = useState<EditedPhoto>()
   const [adjusting, setAdjusting] = useState<PhotoEdit | null>(null)
   const [photoId, setPhotoId] = useState(task.photoId)
+  const [photoNotice,setPhotoNotice]=useState(false)
   const [photoError, setPhotoError] = useState('')
   const [processing, setProcessing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -47,6 +48,7 @@ export function Editor({task,habit,exists,close,save,remove,error,busy}: {task: 
   return <><Modal title={`${exists ? 'Edit' : 'New'} ${recurring ? 'habit' : 'task'}`} close={() => {if (!saving) close()}}>
     <form onSubmit={e => {e.preventDefault(); void submit()}}>
       <fieldset className="type-choice" disabled={exists || locked}><legend>What kind of little thing?</legend><div className="segmented"><button type="button" aria-pressed={!recurring} onClick={() => setKind('today')}>Today only</button><button type="button" aria-pressed={recurring} onClick={() => {setKind('habit'); if (!value.weekdays.length) setValue({...value, weekdays: [0,1,2,3,4,5,6]})}}>Recurring habit</button></div></fieldset>
+      <div className="plan-usage"><span>Tasks {usage.tasks}/{unlimited?'Unlimited':10}</span><span>Habits {usage.habits}/{unlimited?'Unlimited':5}</span></div>
       {exists && <p className="type-note">{recurring ? 'Recurring habit' : 'Today-only task'} · type stays fixed to protect history.</p>}
       <label>Title<input required maxLength={180} placeholder="One small thing…" value={value.title} onChange={e => setValue({...value,title:e.target.value})}/></label>
       <label>Notes <span className="optional">optional</span><textarea placeholder="A little encouragement, or a few details." maxLength={3000} rows={3} value={value.notes} onChange={e => setValue({...value,notes:e.target.value})}/></label>
@@ -54,8 +56,8 @@ export function Editor({task,habit,exists,close,save,remove,error,busy}: {task: 
       <fieldset className="photo-picker"><legend>Make it yours <span className="optional">optional</span></legend>
         <TaskVisual icon={value.icon} photoId={photoId} draft={draft?.rendered}/>
         <label>Icon<select aria-label="Task icon" value={value.icon ?? 'neutral'} onChange={e => setValue({...value,icon:e.target.value as Visual})}>{Object.entries(D.visualNames).map(([id,name]) => <option key={id} value={id}>{name}</option>)}</select></label>
-        <input ref={input} aria-label="Choose task photo" type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={e => void pick(e.target.files?.[0])} className="sr-only" tabIndex={-1}/>
-        <div className="photo-actions"><button ref={photoButton} type="button" className="secondary" disabled={locked} onClick={() => { (document.activeElement as HTMLElement | null)?.blur(); input.current?.click() }}><Upload size={16}/>{processing ? 'Preparing photo…' : draft || photoId ? 'Replace photo' : 'Choose photo'}</button>{(draft || photoId) && <button type="button" className="secondary" disabled={locked} onClick={async () => {setPhotoError('');setProcessing(true);try{setAdjusting(draft ?? await getPhotoEdit(photoId!))}catch(e){setPhotoError(e instanceof Error ? e.message : 'Could not open this photo.')}finally{setProcessing(false)}}}>Adjust photo</button>}{(draft || photoId) && <button type="button" className="text-button" disabled={locked} onClick={() => {fileGeneration.current++; setDraft(undefined); setPhotoId(undefined); setPhotoError('')}}><ImageMinus size={16}/>Remove photo</button>}</div>
+        <input ref={input} aria-label="Choose task photo" type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={e => void pick(e.target.files?.[0])} hidden tabIndex={-1}/>
+        <div className="photo-actions"><button ref={photoButton} type="button" className="secondary" disabled={locked} onClick={()=>setPhotoNotice(true)}><Upload size={16}/>{processing ? 'Preparing photo…' : draft || photoId ? 'Replace photo' : 'Choose photo'}</button>{(draft || photoId) && <button type="button" className="secondary" disabled={locked} onClick={async () => {setPhotoError('');setProcessing(true);try{setAdjusting(draft ?? await getPhotoEdit(photoId!))}catch(e){setPhotoError(e instanceof Error ? e.message : 'Could not open this photo.')}finally{setProcessing(false)}}}>Adjust photo</button>}{(draft || photoId) && <button type="button" className="text-button" disabled={locked} onClick={() => {fileGeneration.current++; setDraft(undefined); setPhotoId(undefined); setPhotoError('')}}><ImageMinus size={16}/>Remove photo</button>}</div>
         <p className="photo-privacy">Only the photo you select is added. It stays on this device.</p><p className="footnote">Photo library or files · JPEG, PNG, WebP, AVIF · up to 20 MB. Crop resized to 1200 px; source kept locally for re-editing.</p>
         {photoError && <p className="field-error" role="alert">{photoError}</p>}
       </fieldset>
@@ -64,5 +66,5 @@ export function Editor({task,habit,exists,close,save,remove,error,busy}: {task: 
       <div className="form-actions"><button type="button" className="secondary" disabled={saving} onClick={close}>Cancel</button><button className="primary" disabled={locked || !value.title.trim() || (recurring && !value.weekdays.length)}>{saving ? 'Saving…' : `Save ${recurring ? 'habit' : 'task'}`}</button></div>
       {exists && <div className="delete-section">{confirm ? <><p>{recurring ? 'Stop future occurrences? Today’s card and all history remain.' : 'Remove this task from the deck? Its history remains marked deleted.'}</p><button type="button" className="danger" disabled={locked} onClick={() => void remove()}>Confirm delete</button><button type="button" className="text-button" onClick={() => setConfirm(false)}>Keep it</button></> : <button type="button" className="text-button danger" onClick={() => setConfirm(true)}><Trash2 size={15}/>Delete {recurring ? 'habit' : 'task'}</button>}</div>}
     </form>
-  </Modal>{adjusting && <ImageEditor photo={adjusting} cancel={closeAdjusting} use={photo => {setDraft(photo);setPhotoId(undefined);closeAdjusting()}}/>}</>
+  </Modal>{adjusting && <ImageEditor photo={adjusting} cancel={closeAdjusting} chooseAnother={()=>setPhotoNotice(true)} externalError={photoError} use={photo => {setDraft(photo);setPhotoId(undefined);closeAdjusting()}}/>}{photoNotice&&<Modal title="Choose a task photo" close={()=>setPhotoNotice(false)} initialFocus="heading"><p>Choose a photo to add to this task. The app receives only the photo you select.</p><p>This is information about the picker, not a system permission grant. Only the selected file is processed locally.</p><div className="form-actions"><button type="button" className="secondary" onClick={()=>setPhotoNotice(false)}>Cancel</button><button type="button" className="primary" onClick={()=>{setPhotoNotice(false);(document.activeElement as HTMLElement|null)?.blur();input.current?.click()}}>Continue</button></div></Modal>}</>
 }

@@ -1,0 +1,3 @@
+import * as D from './deck'
+import {SANDBOX,TEST_MODE} from './environment'
+export function bootstrapFixture(){if(!TEST_MODE||!SANDBOX||localStorage.getItem(D.STORAGE_KEY)!==null)return;const q=new URLSearchParams(location.search),tasks=Number(q.get('tasks')),habits=Number(q.get('habits'));if(![9,10,11].includes(tasks)||![4,5,6].includes(habits))return;const d=D.seed();for(let i=3;i<habits;i++)D.saveTask(d,{...d.tasks[0],id:D.uid(),title:`Fixture habit ${i+1}`,through:undefined});for(let i=0;i<tasks;i++)D.saveTask(d,{id:D.uid(),kind:'today',icon:'neutral',title:`Fixture task ${i+1}`,notes:'Isolated test data',minutes:null,weekdays:[],created:D.dayKey(),archived:false});D.persist(localStorage,d)}

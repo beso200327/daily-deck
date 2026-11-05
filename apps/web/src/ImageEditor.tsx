@@ -1,13 +1,14 @@
-import {useEffect,useRef,useState} from 'react'
+import {useEffect,useLayoutEffect,useRef,useState} from 'react'
 import {Modal} from './Modal'
 import {clampCrop,cropRect,defaultCrop,panCrop,pinchCrop,type Crop} from './crop'
 import {renderPhoto,type PhotoEdit,type EditedPhoto} from './photos'
 type Point={x:number;y:number}
-export function ImageEditor({photo,cancel,use}:{photo:PhotoEdit;cancel:()=>void;use:(photo:EditedPhoto)=>void}) {
+export function ImageEditor({photo,cancel,use,chooseAnother,externalError}:{photo:PhotoEdit;cancel:()=>void;use:(photo:EditedPhoto)=>void;chooseAnother:()=>void;externalError:string}) {
  const [crop,setCrop]=useState<Crop>(photo.crop),cropRef=useRef(crop)
  const [url,setUrl]=useState(''),[width,setWidth]=useState(280),[busy,setBusy]=useState(false),[error,setError]=useState('')
  const frame=useRef<HTMLDivElement>(null),points=useRef(new Map<number,Point>()),gesture=useRef<{crop:Crop;points:Point[]} | null>(null)
- useEffect(()=>{const url=URL.createObjectURL(photo.source);setUrl(url);return()=>URL.revokeObjectURL(url)},[photo.source])
+ useLayoutEffect(()=>{const url=URL.createObjectURL(photo.source);setUrl(url);return()=>URL.revokeObjectURL(url)},[photo.source])
+ useLayoutEffect(()=>{setCrop(photo.crop);cropRef.current=photo.crop;points.current.clear();gesture.current=null},[photo])
  useEffect(()=>{const el=frame.current!;const observer=new ResizeObserver(()=>{points.current.clear();gesture.current=null;setWidth(el.clientWidth)});observer.observe(el);setWidth(el.clientWidth);return()=>observer.disconnect()},[])
  function update(next:Crop){const value=clampCrop(photo.width,photo.height,next);cropRef.current=value;setCrop(value)}
  function rebase(){gesture.current={crop:{...cropRef.current},points:[...points.current.values()].map(p=>({...p}))}}
@@ -26,6 +27,7 @@ export function ImageEditor({photo,cancel,use}:{photo:PhotoEdit;cancel:()=>void;
   </div>
   <label className="zoom-label">Zoom <output>{crop.zoom.toFixed(1)}×</output><input aria-label="Photo zoom" type="range" min="1" max="4" step="0.01" value={crop.zoom} disabled={busy} onChange={e=>update({...crop,zoom:Number(e.target.value)})}/></label>
   <p className="footnote">Only the photo you select is added. It stays on this device.</p>{error&&<p role="alert" className="field-error">{error}</p>}
-  <div className="crop-actions"><button className="secondary" disabled={busy} onClick={()=>update({...defaultCrop})}>Reset</button><button className="secondary" disabled={busy} onClick={cancel}>Cancel</button><button className="primary" disabled={busy} onClick={async()=>{setBusy(true);setError('');try{use(await renderPhoto({...photo,crop:cropRef.current}))}catch(e){setError(e instanceof Error?e.message:'Could not crop photo.');setBusy(false)}}}>{busy?'Preparing…':'Use photo'}</button></div>
+  <button type="button" className="secondary crop-change" disabled={busy} onClick={chooseAnother}>Choose another photo</button>{externalError&&<p role="alert" className="field-error">{externalError}</p>}
+  <div className="crop-actions"><button type="button" className="secondary" disabled={busy} onClick={()=>update({...defaultCrop})}>Reset</button><button type="button" className="secondary" disabled={busy} onClick={cancel}>Cancel</button><button type="button" className="primary" disabled={busy} onClick={async()=>{setBusy(true);setError('');try{use(await renderPhoto({...photo,crop:cropRef.current}))}catch(e){setError(e instanceof Error?e.message:'Could not crop photo.');setBusy(false)}}}>{busy?'Preparing…':'Use photo'}</button></div>
  </Modal>
 }

@@ -35,3 +35,8 @@ A proposed USD 3.99/month unlimited plan is not implemented. Accounts, receipts,
 ## Publication gate
 
 Resolve every pending field, verify current official sources, obtain appropriate legal review, set an effective date, publish a stable accessible URL, link it in web/native UI and App Store Connect, and verify the notice agrees with actual hosting/device/SDK traffic. Do not publish this draft as final.
+
+
+## Prototype testing update (still not a published policy)
+
+The web prototype now has local 10-active-task/5-active-habit capacity gates. Explicit local/isolated-preview builds can store a simulated plan and expiry timestamp and use separate sandbox deck/photo stores per test-window identifier. These are local testing records, not payment/customer information or trusted entitlements. Public production builds omit these tools. New photo selections use an app informational confirmation before the real system picker; this is not broad-library permission or legal/marketing consent. No live checkout or external billing transmission was introduced.

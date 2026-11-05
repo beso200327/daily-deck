@@ -17,3 +17,6 @@ Owner decisions/legal review needed before contract text is final:
 - If identity/accounts are later needed for purchases or sync: access security, recovery/deletion scope/timing/exceptions and separation of subscription cancellation from account deletion. Account deletion must not be mislabeled deactivation.
 
 No final Terms link should point to this draft. Final terms, privacy notice and support contact need public reachable URLs and App Store review alignment after decisions/current-source verification.
+
+
+Prototype allowance update: the latest owner request resolves the web test policy to 10 active incomplete one-time tasks plus five active recurring habit definitions (starters included), with closed/completed/skipped/archived items excluded as documented in `desktop-sidebar-and-plan-testing.md`. A local allowance dialog and isolated, clearly labeled test upgrades now exist. They are not real billing, a live price offer or secure paid entitlements. All remaining subscription, identity/contact and legal-review gates above still apply.

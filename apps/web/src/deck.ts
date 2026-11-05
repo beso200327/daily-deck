@@ -1,3 +1,4 @@
+import {storageSuffix} from './environment'
 export type Day = string
 export type Action = 'done' | 'later' | 'skip' | 'delete' | 'undo' | 'reorder'
 export type Outcome = 'completed' | 'postponed' | 'skipped' | 'missed' | 'pending' | 'deleted'
@@ -26,7 +27,7 @@ export function migrate(deck: Deck): Deck {
   for (const card of deck.cards) card.icon ??= inferredIcon(card)
   return deck
 }
-export const STORAGE_KEY = 'daily-deck.web.v1'
+export const STORAGE_KEY = `daily-deck.web.v1${storageSuffix}`
 export const uid = () => typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2, '0')).join('')
 export const dayKey = (date = new Date()): Day => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 export function dateOf(day: Day) { const [y, m, d] = day.split('-').map(Number); return new Date(y, m - 1, d, 12) }

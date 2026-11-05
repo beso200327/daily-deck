@@ -1,3 +1,4 @@
+import {assertCapacity} from './limits'
 import * as D from './deck'
 import {addPhotos,deletePhoto,listPhotos,clearPhotos,type StoredPhoto} from './photos'
 const LIMIT=64*1024*1024
@@ -50,6 +51,7 @@ export function mergeBackup(current:D.Deck,incoming:D.Deck):D.Deck {
 async function sameBlob(a:Blob,b:Blob){if(a.type!==b.type||a.size!==b.size)return false;const x=new Uint8Array(await a.arrayBuffer()),y=new Uint8Array(await b.arrayBuffer());return x.every((n,i)=>n===y[i])}
 export async function importBackup(backup:Awaited<ReturnType<typeof readBackup>>,storage:Storage=localStorage){
  const raw=storage.getItem(D.STORAGE_KEY),current=raw?validateBackupDeck(JSON.parse(raw)):{version:1 as const,tasks:[],cards:[]},merged=mergeBackup(current,backup.deck),existing=await listPhotos()
+ assertCapacity(current,merged)
  const added:StoredPhoto[]=[]
  for(const photo of backup.photos){const old=existing.find(p=>p.id===photo.id);if(!old){added.push(photo);continue}if(!await sameBlob(old.rendered,photo.rendered)||stable(old.edit&&{...old.edit,source:undefined})!==stable(photo.edit&&{...photo.edit,source:undefined})||(old.edit&&photo.edit&&!await sameBlob(old.edit.source,photo.edit.source)))throw new Error('A saved photo conflicts with this backup. Nothing was imported.')}
  await addPhotos(added)

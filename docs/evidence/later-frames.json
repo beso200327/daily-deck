@@ -1,0 +1,529 @@
+{
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "data": "Synthetic fixture: 3 habits, 9 active one-time tasks",
+  "frames": [
+    {
+      "ms": 545,
+      "phase": "idle",
+      "connected": true,
+      "opacity": "1",
+      "left": 415.5,
+      "right": 890.5
+    },
+    {
+      "ms": 546,
+      "phase": "idle",
+      "connected": true,
+      "opacity": "1",
+      "left": 415.5,
+      "right": 890.5
+    },
+    {
+      "ms": 578,
+      "phase": "idle",
+      "connected": true,
+      "opacity": "1",
+      "left": 415.5,
+      "right": 890.5
+    },
+    {
+      "ms": 579,
+      "phase": "idle",
+      "connected": true,
+      "opacity": "1",
+      "left": 415.5,
+      "right": 890.5
+    },
+    {
+      "ms": 596,
+      "phase": "idle",
+      "connected": true,
+      "opacity": "1",
+      "left": 415.5,
+      "right": 890.5
+    },
+    {
+      "ms": 613,
+      "phase": "idle",
+      "connected": true,
+      "opacity": "1",
+      "left": 415.5,
+      "right": 890.5
+    },
+    {
+      "ms": 630,
+      "phase": "idle",
+      "connected": true,
+      "opacity": "1",
+      "left": 415.5,
+      "right": 890.5
+    },
+    {
+      "ms": 646,
+      "phase": "idle",
+      "connected": true,
+      "opacity": "1",
+      "left": 415.5,
+      "right": 890.5
+    },
+    {
+      "ms": 675,
+      "phase": "out",
+      "connected": true,
+      "opacity": "1",
+      "left": 415.5,
+      "right": 890.5
+    },
+    {
+      "ms": 682,
+      "phase": "out",
+      "connected": true,
+      "opacity": "1",
+      "left": 415.5,
+      "right": 890.5
+    },
+    {
+      "ms": 712,
+      "phase": "out",
+      "connected": true,
+      "opacity": "1",
+      "left": 365.1049499511719,
+      "right": 853.4398193359375
+    },
+    {
+      "ms": 735,
+      "phase": "out",
+      "connected": true,
+      "opacity": "1",
+      "left": 279.0346374511719,
+      "right": 789.20849609375
+    },
+    {
+      "ms": 767,
+      "phase": "out",
+      "connected": true,
+      "opacity": "1",
+      "left": 226.46017456054688,
+      "right": 749.3645935058594
+    },
+    {
+      "ms": 795,
+      "phase": "out",
+      "connected": true,
+      "opacity": "1",
+      "left": 210.041015625,
+      "right": 736.82275390625
+    },
+    {
+      "ms": 797,
+      "phase": "out",
+      "connected": true,
+      "opacity": "1",
+      "left": 197.6607208251953,
+      "right": 727.3344879150391
+    },
+    {
+      "ms": 823,
+      "phase": "out",
+      "connected": true,
+      "opacity": "1",
+      "left": 188.4121551513672,
+      "right": 720.2283782958984
+    },
+    {
+      "ms": 845,
+      "phase": "out",
+      "connected": true,
+      "opacity": "1",
+      "left": 181.3196258544922,
+      "right": 714.7684173583984
+    },
+    {
+      "ms": 869,
+      "phase": "out",
+      "connected": true,
+      "opacity": "1",
+      "left": 171.5277557373047,
+      "right": 707.2155609130859
+    },
+    {
+      "ms": 892,
+      "phase": "out",
+      "connected": true,
+      "opacity": "1",
+      "left": 168.2130584716797,
+      "right": 704.6547698974609
+    },
+    {
+      "ms": 915,
+      "phase": "out",
+      "connected": true,
+      "opacity": "1",
+      "left": 163.73025512695312,
+      "right": 701.1885070800781
+    },
+    {
+      "ms": 935,
+      "phase": "out",
+      "connected": true,
+      "opacity": "1",
+      "left": 162.28736877441406,
+      "right": 700.0719757080078
+    },
+    {
+      "ms": 955,
+      "phase": "out",
+      "connected": true,
+      "opacity": "1",
+      "left": 161.2625732421875,
+      "right": 699.2787475585938
+    },
+    {
+      "ms": 975,
+      "phase": "out",
+      "connected": true,
+      "opacity": "1",
+      "left": 160.5752716064453,
+      "right": 698.7467193603516
+    },
+    {
+      "ms": 980,
+      "phase": "out",
+      "connected": true,
+      "opacity": "1",
+      "left": 160.17813110351562,
+      "right": 698.4392395019531
+    },
+    {
+      "ms": 1000,
+      "phase": "out",
+      "connected": true,
+      "opacity": "1",
+      "left": 160.0273895263672,
+      "right": 698.3224334716797
+    },
+    {
+      "ms": 1026,
+      "phase": "out",
+      "connected": true,
+      "opacity": "1",
+      "left": 160.023193359375,
+      "right": 698.3192138671875
+    },
+    {
+      "ms": 1051,
+      "phase": "return",
+      "connected": true,
+      "opacity": "1",
+      "left": 160.023193359375,
+      "right": 698.3192138671875
+    },
+    {
+      "ms": 1068,
+      "phase": "return",
+      "connected": true,
+      "opacity": "1",
+      "left": 160.023193359375,
+      "right": 698.3192138671875
+    },
+    {
+      "ms": 1099,
+      "phase": "return",
+      "connected": true,
+      "opacity": "1",
+      "left": 277.007568359375,
+      "right": 772.8916015625
+    },
+    {
+      "ms": 1123,
+      "phase": "return",
+      "connected": true,
+      "opacity": "1",
+      "left": 325.1527099609375,
+      "right": 802.9912719726562
+    },
+    {
+      "ms": 1150,
+      "phase": "return",
+      "connected": true,
+      "opacity": "1",
+      "left": 385.5125427246094,
+      "right": 847.330322265625
+    },
+    {
+      "ms": 1177,
+      "phase": "return",
+      "connected": true,
+      "opacity": "1",
+      "left": 399.6949157714844,
+      "right": 866.096435546875
+    },
+    {
+      "ms": 1203,
+      "phase": "return",
+      "connected": true,
+      "opacity": "1",
+      "left": 418.381591796875,
+      "right": 890.575439453125
+    },
+    {
+      "ms": 1225,
+      "phase": "return",
+      "connected": true,
+      "opacity": "1",
+      "left": 424.5426940917969,
+      "right": 898.5853881835938
+    },
+    {
+      "ms": 1245,
+      "phase": "return",
+      "connected": true,
+      "opacity": "1",
+      "left": 429.3194580078125,
+      "right": 904.77490234375
+    },
+    {
+      "ms": 1265,
+      "phase": "return",
+      "connected": true,
+      "opacity": "1",
+      "left": 435.9560241699219,
+      "right": 913.3445434570312
+    },
+    {
+      "ms": 1288,
+      "phase": "return",
+      "connected": true,
+      "opacity": "1",
+      "left": 438.1802673339844,
+      "right": 916.208984375
+    },
+    {
+      "ms": 1310,
+      "phase": "return",
+      "connected": true,
+      "opacity": "1",
+      "left": 439.8837585449219,
+      "right": 918.400146484375
+    },
+    {
+      "ms": 1313,
+      "phase": "return",
+      "connected": true,
+      "opacity": "1",
+      "left": 441.14300537109375,
+      "right": 920.0184326171875
+    },
+    {
+      "ms": 1342,
+      "phase": "return",
+      "connected": true,
+      "opacity": "1",
+      "left": 442.0488586425781,
+      "right": 921.1817626953125
+    },
+    {
+      "ms": 1365,
+      "phase": "return",
+      "connected": true,
+      "opacity": "1",
+      "left": 443.0011291503906,
+      "right": 922.404052734375
+    },
+    {
+      "ms": 1403,
+      "phase": "return",
+      "connected": true,
+      "opacity": "1",
+      "left": 443.13739013671875,
+      "right": 922.5789184570312
+    },
+    {
+      "ms": 1414,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1436,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1453,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1463,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1480,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1496,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1513,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1529,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1546,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1563,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1579,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1596,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1613,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1630,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1646,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1663,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1680,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1696,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1713,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1730,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1746,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1763,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    },
+    {
+      "ms": 1780,
+      "phase": "return",
+      "connected": false,
+      "opacity": "",
+      "left": 0,
+      "right": 0
+    }
+  ]
+}

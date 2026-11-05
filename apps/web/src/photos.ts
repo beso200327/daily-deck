@@ -1,5 +1,6 @@
+import {storageSuffix} from './environment'
 import {cropRect,clampCrop,defaultCrop,type Crop} from './crop'
-const DB='daily-deck-images'
+const DB=`daily-deck-images${storageSuffix}`
 const STORE='photos'
 const EDITS='edits'
 export type PhotoEdit = {source:Blob;width:number;height:number;crop:Crop}

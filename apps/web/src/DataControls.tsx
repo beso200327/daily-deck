@@ -1,9 +1,10 @@
+import {LimitError} from './limits'
 import {useRef,useState} from 'react'
 import {exportBackup,readBackup,importBackup,deleteLocalData,withDataLock} from './backup'
-export function DataControls({changed}:{changed:()=>void}){
+export function DataControls({changed,onLimit}:{changed:()=>void;onLimit:(error:LimitError)=>void}){
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState(''),[confirm,setConfirm]=useState(false)
  const [pending,setPending]=useState<Awaited<ReturnType<typeof readBackup>>|null>(null),input=useRef<HTMLInputElement>(null),locked=useRef(false)
- async function run(action:()=>Promise<void>){if(locked.current)return;locked.current=true;setBusy(true);setError('');setMessage('');try{await action()}catch(e){setError(e instanceof Error?e.message:'Storage is unavailable. Your data may not have been saved.')}finally{locked.current=false;setBusy(false)}}
+ async function run(action:()=>Promise<void>){if(locked.current)return;locked.current=true;setBusy(true);setError('');setMessage('');try{await action()}catch(e){if(e instanceof LimitError)onLimit(e);else setError(e instanceof Error?e.message:'Storage is unavailable. Your data may not have been saved.')}finally{locked.current=false;setBusy(false)}}
  return <section className="data-controls" aria-label="Local data and privacy"><h3>Local data & privacy</h3>
  <p>Task text, notes, photos and history are saved in this browser. There is no account or device sync. Site hosting receives ordinary page requests, including connection information such as your IP address; hosting logs and retention require the operator’s review. Task contents and photos are not included in application requests or analytics.</p>
  <p>Only the photo you select is added. It stays on this device. New selections have embedded metadata removed before storage. Older retained sources and older backups may still contain photo metadata.</p>
