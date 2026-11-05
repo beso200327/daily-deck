@@ -1,29 +1,34 @@
-# Web validation — November 5, 2026
+# Mobile fixes validation — November 5, 2026
 
-This update adds task-specific visuals, persistent photos, actual stacked task cards, explicit task types, PWA installation/offline caching, and a labeled browser-only Widget preview. No manual deployment is part of this task.
+## Verified implementation and privacy scope
 
-## Model and build checks
+The existing web photo flow was a system `<input type="file">`, invoked only by Choose/Replace. It receives selected file bytes/metadata, not photo-library enumeration or full-library permission. The website does not control iOS selected/full-library authorization and implements no imitation iOS permission dialog. Launch and form-open paths do not invoke a file picker. Previously selected images are read from the app's own local IndexedDB for display.
 
-- `npm test`: 33 model tests passed. These include the existing recurrence/action/history suite and new tests for in-place version-one migration, unrelated neutral visuals, today-only versus recurring creation, exact-once occurrence generation, selected weekdays, validation, dated photo/icon snapshots, JSON reference persistence, immutable task type on editing, and drafts saved across midnight.
-- `npm run build`: TypeScript and the optimized Vite build passed, including generated versioned `sw.js`, manifest, and installation icons.
-- Existing native iOS/WidgetKit code is preserved. Native SDK builds, signing, simulator runs, OS widget behavior and App Group provisioning were not verified by this web environment.
+The exact UI copy is: “Only the photo you select is added. It stays on this device.” Source inspection found no upload/analytics/beacon/PhotoKit authorization code. A browser network test observed no POST/PUT or third-party HTTP request through selection, crop and save. The unchanged native app currently has no PhotosPicker/PhotoKit photo-access implementation or authorization requests; a future selected-photo feature should use PhotosPicker without unnecessary broad library authorization.
 
-## Browser regression evidence
+## Completed checks
 
-Desktop Chromium and an iPhone-sized Chromium touch viewport are used against the **production build**, with additional layout checks at 320, 768, and 1024 CSS pixels. The full suite passed with **43 browser tests passed and one intentional desktop-only touch skip**. The real-touch case passed on the mobile project.
+- `npm test`: **38 model tests passed**, including four crop-geometry tests and the regression for rapid identical-timestamp actions selecting the correct undo token.
+- `npm run build`: strict TypeScript and the Vite production build passed, generating the offline shell and install assets.
+- `npm run test:e2e`: **67 passed, three intentional desktop-only touch skips (70 cases)** in the final complete run. Desktop and iPhone-sized touch projects ran against the production build. Earlier runs exposed nested-dialog assertion and temporary service-worker fixture races; assertions now wait for crop dismissal and the actual consented reload.
+- Photo-save also passed five repeated desktop executions. The affected focus, photo-save and touch-toast cases passed three repeated executions per project (15 passed, three intentional desktop-only touch skips in that targeted repeated run).
 
-The suite exercises task actions, keyboard controls, recurrence and midnight rollover; one-time and recurring entry points; immediate Habits rendering; duplicate-save prevention; real behind-card images/text and keyed DOM promotion without changing deck bounds; actual mouse/touch gestures; zero/one/two-card states and reduced motion; duplicate animation-action prevention; undo; legacy ID/event preservation; completion timestamps and summaries; and responsive layouts.
+## Browser behaviors exercised
 
-Photo checks use actual browser canvas compression and IndexedDB: a generated 1800×900 PNG becomes a 1200×600 JPEG under 1 MB. The blob survives reloads, stays with the right task across Later/undo, and never appears as base64 or a blob URL in localStorage. Replace and remove are exercised, including retaining old immutable blobs for history. Unsupported input and injected storage-denial failures show errors without saving invalid references.
+- Explicit picker opening only from a user tap/click, picker cancellation preserving form contents, and local-only selected-photo processing.
+- Dragging a crop, slider zoom, actual two-touch pinch without changing browser zoom, Reset, Cancel, Use photo, persisted crop display, and re-editing a saved image without opening the picker. Retained source bytes match across re-edits.
+- Original EXIF orientation 6 decodes to the expected rotated dimensions. Rendered JPEG removes EXIF; original selected source remains local.
+- IndexedDB version-one photo blob migration into the additive version-two database without changed photo IDs, legacy bytes, task IDs or history. Version two retains the `photos` store and adds immutable editing sources/crop metadata under `edits`.
+- Form field bounds/scroll widths, 16 px text, locked background and reachable Save/Cancel at widths **320, 375, 390, 430 and 1024**, including 400 px high keyboard-sized viewports. Existing page layout tests also cover tablet/desktop. Focus returns to photo controls after crop editing instead of reopening the text keyboard. Narrow-view screenshots were inspected.
+- Ordinary notifications expire after about 3 seconds; Undo notifications after about 6. Hover/focus pause the remainder, newer message timers replace older ones, manual close works, navigation clears obsolete notices, and touch-generated compatibility hover does not leave notifications stuck. Notification bounds avoid the primary task controls.
+- Release cards remain opaque and connected during the approximately 320 ms exit. State is not changed before exit completion. Later preserves the same keyed DOM node through outward and bottom-return phases; transform completion events are observed for both phases. The next real card stays rendered. Slow/subthreshold drags, short quick flicks, buttons, repeated actions, correct undo, zero/one/two-card states, and reduced motion are covered.
+- Existing recurrence, persistence, calendar/history, summaries, data migration, PWA offline reopening and consent-based update tests remain in the full suite.
 
-PWA checks verify manifest metadata and Apple icon links, register the actual built service worker, reopen offline after a completed action, and verify persisted state. An actual replacement worker (registered through a changed script URL for the test) waits while an unsaved form is open; Reload update is disabled until the form is saved, and activation only occurs after explicit consent, preserving the saved task.
+## Unverified and limitations
 
-Browser testing exposed and corrected first-install update notices, desktop grid auto-margin shifts after queue changes, compact-screen horizontal overflow, and action-label spacing above the fixed mobile navigation. Tests wait for real saves and transition locks rather than reading storage before an asynchronous commit finishes.
-
-## Remaining limitations
-
-- Chromium device emulation is not physical iPhone Safari. Actual Home Screen installation, Safari photo-library/HEIC conversion, and Safari accessibility/gesture behavior remain unverified on hardware.
-- Data, images and caches are local to the browser/origin. No cross-device, native-app, or cross-profile sync. Clearing/evicting site storage can remove them. Photos are not exported/backed up; retained historical blobs can consume local quota.
-- Unsupported image types (including unconverted HEIC) require conversion to JPEG/PNG/WebP/AVIF.
-- Web installation and Widget preview are not a native iOS widget. The native WidgetKit extension still needs Xcode and a signed iPhone or simulator for verification.
-- Pushing the GitHub branch may trigger an existing automatic Vercel Git deployment. No manual Vercel deployment is performed or claimed here.
+- No real iPhone, Safari keyboard, or OS-installed standalone PWA window is available here. Chromium device emulation and visual-viewport resizing are not hardware verification.
+- WebKit was not installed. An attempt to obtain the official Playwright Linux container failed during image retrieval with `download failed after attempts=6: Forbidden`. No WebKit or Safari pass is claimed.
+- Actual iOS Photos permission/denial UI belongs to the browser/OS and cannot be manufactured or controlled by this website. Real phone photo-library/HEIC behavior remains a device check. Unsupported files and unavailable storage are exercised with clear non-destructive errors.
+- The original high-resolution source cannot be recovered for photos saved before sources were retained; their existing rendered blob becomes the best available editing source. New originals may contain original metadata, stay local, and can consume more storage. Clearing/evicting browser storage removes local data; there is no cloud backup or synchronization.
+- Existing native code and WidgetKit are unchanged. Native SDK compilation/signing, device/simulator execution and OS widgets still require Xcode and an iPhone or simulator.
+- No manual Vercel deployment is performed. A push to `main` may trigger an existing automatic Vercel Git integration.

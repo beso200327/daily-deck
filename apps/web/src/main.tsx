@@ -9,6 +9,7 @@ import { Editor } from './Editor'
 import { TaskDeck, type Exit } from './TaskDeck'
 import { TaskVisual } from './visuals'
 import { PwaControls } from './Pwa'
+import { Toast, type ToastMessage } from './Toast'
 
 const newTask = (habit: boolean): Task => ({ id: D.uid(), kind: habit ? 'habit' : 'today', icon: 'neutral', title: '', notes: '', minutes: null, weekdays: habit ? [0,1,2,3,4,5,6] : [], created: D.dayKey(), archived: false })
 const weekNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -30,8 +31,12 @@ function App() {
   const [exit, setExit] = useState<Exit | null>(null)
   const actionLock = useRef(false)
   const busy = writing || animating
-  const [announcement, setAnnouncement] = useState('')
-  const [toast, setToast] = useState('')
+  const [toast, setToast] = useState<ToastMessage | null>(null)
+  const navigationEpoch = useRef(0)
+  const exitWait = useRef<{id:string;phase:Exit['phase'];done:()=>void}|null>(null)
+  useEffect(() => {navigationEpoch.current++;setToast(null)}, [tab])
+  const modalOpen = !!(editor || reordering || managing || detail || info)
+  useEffect(() => {if(modalOpen)setToast(null)},[modalOpen])
   const busyRef = useRef(false)
   const refresh = () => { if (actionLock.current || busyRef.current) return; try { const next = D.load(localStorage); if (localStorage.getItem(D.STORAGE_KEY) !== JSON.stringify(next)) D.persist(localStorage, next); setDeck(next); setToday(D.dayKey()); setError('') } catch (e) { setError(errorText(e)) } }
   useEffect(() => {
@@ -41,13 +46,15 @@ function App() {
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') refresh() }, 30_000)
     return () => { clearInterval(timer); window.removeEventListener('storage', refresh); document.removeEventListener('visibilitychange', onVisible) }
   }, [])
-  async function commit(change: (next: Deck) => void, message?: string) {
+  async function commit(change: (next: Deck) => void, message?: string, undoable = false) {
     if (busyRef.current) return false
     busyRef.current = true; setWriting(true)
+    const epoch = navigationEpoch.current
+    let undoId: string | undefined
     try {
-      const write = () => { const next = D.load(localStorage); change(next); D.persist(localStorage, next); setDeck(next); setToday(D.dayKey()); setError('') }
+      const write = () => { const next = D.load(localStorage); change(next); D.persist(localStorage, next); undoId = undoable ? D.undoToken(next) : undefined; setDeck(next); setToday(D.dayKey()); setError('') }
       if (navigator.locks) await navigator.locks.request('daily-deck-write', write); else write()
-      if (message) { setAnnouncement(message); setToast(message) }
+      if (message && epoch === navigationEpoch.current) setToast({id:D.uid(),message,undoId})
       return true
     } catch (e) { setError(errorText(e)); return false }
     finally { busyRef.current = false; setWriting(false) }
@@ -57,21 +64,31 @@ function App() {
   const cards = deck ? D.pending(deck, today) : []
   const counts = deck ? D.summarize(deck, today) : null
   const token = deck ? D.undoToken(deck, today) : undefined
-  const action = async (type: 'done' | 'later' | 'skip', card: Card) => {
-    if (actionLock.current || busyRef.current) return
-    actionLock.current = true; setAnimating(true)
-    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
-    setExit({id:card.id,action:type,single:cards.length===1})
-    try {
-      if (!reduced) await new Promise(resolve => setTimeout(resolve,200))
-      await commit(next => {
-        if (D.pending(next)[0]?.id !== card.id) throw new Error('This card changed in another tab or a new day began. Refresh your deck.')
-        D.act(next,card.id,type)
-      }, type==='done' ? `Completed: ${card.title}` : type==='later' ? `Moved to the end: ${card.title}` : `Skipped today: ${card.title}`)
-      setExit(null)
-      if (!reduced) await new Promise(resolve => setTimeout(resolve,200))
-    } finally {setExit(null);actionLock.current=false;setAnimating(false);if (D.dayKey() !== today) refresh()}
+  function transition(next: Exit, reduced: boolean) {
+    return new Promise<void>(resolve => {
+      const timer = setTimeout(done, reduced ? 90 : 500)
+      function done() {clearTimeout(timer); if (exitWait.current?.done === done) exitWait.current=null; resolve()}
+      exitWait.current={id:next.id,phase:next.phase,done}
+      setExit(next)
+    })
   }
+  const action = async (type:'done'|'later'|'skip',card:Card) => {
+    if(actionLock.current || busyRef.current || document.querySelector('dialog[open]')) return
+    actionLock.current=true;setAnimating(true)
+    const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches
+    const base={id:card.id,card,action:type,single:cards.length===1}
+    const actionEpoch=navigationEpoch.current
+    try {
+      await transition({...base,phase:'out'},reduced)
+      const success=await commit(next=>{
+        if(D.pending(next)[0]?.id!==card.id)throw new Error('This card changed in another tab or a new day began. Refresh your deck.')
+        D.act(next,card.id,type)
+      },actionEpoch===navigationEpoch.current?(type==='done'?`Completed: ${card.title}`:type==='later'?`Moved to the end: ${card.title}`:`Skipped today: ${card.title}`):undefined,true)
+      if(type==='later'||!success) await transition({...base,phase:'return'},reduced)
+      setExit(null)
+    } finally {setExit(null);actionLock.current=false;setAnimating(false);if(D.dayKey()!==today)refresh()}
+  }
+  useEffect(()=>()=>exitWait.current?.done(),[])
   return <div className="app-shell">
     <aside className="navigation"><a className="brand" href="#today" onClick={e => { e.preventDefault(); setTab('Today') }} aria-label="Daily Deck home"><span className="brand-symbol"><Layers size={23}/></span><span>daily deck<span className="brand-dot">.</span></span></a><p className="brand-promise">One thing at a time.</p>
       <nav aria-label="Main navigation">{[House, Layers, BarChart3].map((Icon, i) => { const name = ['Today','Habits','Progress'][i]; return <button key={name} aria-label={name} className={`nav-item ${tab === name ? 'selected' : ''}`} aria-current={tab === name ? 'page' : undefined} onClick={() => setTab(name)}><Icon size={21}/><span>{name}</span>{name === 'Today' && <span className="nav-count">{cards.length}</span>}</button> })}</nav>
@@ -81,7 +98,7 @@ function App() {
       {error && <div className="error-banner" role="alert"><strong>We couldn’t open or save your deck.</strong><p>{error}</p><p>Existing browser data has not been reset.</p><button onClick={refresh}>Retry</button></div>}
       {!deck ? <div className="empty-state"><Leaf size={40}/><h2>{error ? 'Your deck is safely on hold.' : 'Opening your deck…'}</h2></div> : <>
       {tab === 'Today' && <div className="today-layout"><section className="deck-section" aria-label="Today's task deck"><div className="deck-caption"><span className="dot"/> A LITTLE FOCUS GOES A LONG WAY<span className="deck-index">{cards.length ? `01 / ${String(cards.length).padStart(2, '0')}` : 'ALL CLEAR'}</span></div>
-      {cards[0] ? <><TaskDeck cards={cards} exit={exit} onAction={type => action(type, cards[0])} onEdit={() => { const task = deck.tasks.find(t => t.id === cards[0].taskId); if (task) edit(task) }} busy={busy}/><div className="deck-actions"><button disabled={busy} className="action later" onClick={() => action('later', cards[0])}><span><RotateCcw size={29}/></span>Later</button><button disabled={busy} className="action done" onClick={() => action('done', cards[0])}><span><Check size={31}/></span>Done</button></div><p className="gesture-hint">Swipe left for later <span>·</span> right for done</p><div className="deck-options"><button className="text-button" onClick={() => action('skip', cards[0])} disabled={busy}>Skip today</button><span>·</span><button className="text-button" disabled={busy} onClick={() => setReordering(true)}>Reorder deck</button></div></> : <div className="finished-card"><span className="finished-sun">☀</span><span className="pill">A LITTLE ROOM TO BREATHE</span><h2>That’s your deck.</h2><p>You’ve made space for what matters.<br/>Enjoy the rest of your day.</p><button className="secondary" onClick={() => add(false)}><Plus size={18}/> Add one small thing</button></div>}
+      {cards[0] ? <><TaskDeck cards={cards} exit={exit} onExitComplete={(id,phase)=>{const wait=exitWait.current;if(wait?.id===id&&wait.phase===phase)wait.done()}} onAction={type => action(type, cards[0])} onEdit={() => { const task = deck.tasks.find(t => t.id === cards[0].taskId); if (task) edit(task) }} busy={busy || modalOpen}/><div className="deck-actions"><button disabled={busy} className="action later" onClick={() => action('later', cards[0])}><span><RotateCcw size={29}/></span>Later</button><button disabled={busy} className="action done" onClick={() => action('done', cards[0])}><span><Check size={31}/></span>Done</button></div><p className="gesture-hint">Swipe left for later <span>·</span> right for done</p><div className="deck-options"><button className="text-button" onClick={() => action('skip', cards[0])} disabled={busy}>Skip today</button><span>·</span><button className="text-button" disabled={busy} onClick={() => setReordering(true)}>Reorder deck</button></div></> : <div className="finished-card"><span className="finished-sun">☀</span><span className="pill">A LITTLE ROOM TO BREATHE</span><h2>That’s your deck.</h2><p>You’ve made space for what matters.<br/>Enjoy the rest of your day.</p><button className="secondary" onClick={() => add(false)}><Plus size={18}/> Add one small thing</button></div>}
       <button className="text-button manage-tasks" disabled={busy} onClick={() => setManaging(true)}>Manage one-time tasks</button><div className="undo-slot">{token && <button className="undo-button" disabled={busy} onClick={() => void commit(next => { if (!D.undo(next, token)) throw new Error('This action changed or a new day began. Refresh your deck.') }, 'Last action undone')}><RotateCcw size={15}/> Undo last action</button>}</div></section>
       <aside className="today-sidebar"><div className="day-overview"><div className="section-label"><span>YOUR DAY, SO FAR</span><Leaf size={17}/></div><div className="overview-number">{counts!.completed}<span> / {counts!.completed + cards.length}</span></div><p>A little progress is still progress.</p><div className="progress-track"><span style={{ width: `${counts!.completed / Math.max(1, counts!.completed + cards.length) * 100}%` }}/></div><div className="count-labels"><span><i className="lime-dot"/>{counts!.completed} completed</span><span>{cards.length} remaining</span></div></div>
       <div className="up-next"><div className="section-label"><span>IN YOUR DECK</span><span className="small-count">{cards.length}</span></div>{cards.slice(0,4).map((card,i) => <button key={card.id} onClick={() => { const task = deck.tasks.find(t => t.id === card.taskId); if (task) edit(task) }} className="queue-row"><span className={i === 0 ? 'queue-dot active' : 'queue-dot'}/><span>{card.title}<small>{i === 0 ? 'Up next' : card.habit ? 'Recurring habit' : 'One-time task'}</small></span><Pencil size={14}/></button>)}{!cards.length && <p className="muted">A clear deck. A quieter mind.</p>}{cards.length > 4 && <p className="muted">And {cards.length - 4} more little things.</p>}</div>
@@ -90,8 +107,8 @@ function App() {
       {tab === 'Progress' && <Progress deck={deck} today={today} openDetail={(card,day) => {setDetail(card);setDetailDay(day)}}/>}
       </>}
       <PwaControls editing={!!editor || busy}/><footer className="page-footer"><span><span className="status-dot"/> Saved in this browser · no device sync</span><button onClick={() => setInfo(true)}>No account. Just your own pace. <ArrowUpRight size={13}/></button></footer>
-    </main><div className="sr-only" role="status" aria-live="polite">{announcement}</div>
-    {toast && <div className="toast"><Check size={16}/><span>{toast}</span><button aria-label="Dismiss notification" onClick={() => setToast('')}><X size={16}/></button></div>}
+    </main><div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{toast && <span key={toast.id}>{toast.message}</span>}</div>
+    {toast && !modalOpen && <Toast key={toast.id} toast={toast} disabled={busy} dismiss={id=>setToast(current=>current?.id===id?null:current)} undo={id=>void commit(next=>{if(!D.undo(next,id))throw new Error('This action changed or a new day began. Refresh your deck.')},'Last action undone')}/>}
     {editor && <Editor task={editor} habit={editingHabit} exists={!!deck?.tasks.some(t => t.id === editor.id)} close={() => setEditor(null)} error={error} busy={busy} save={async task => { const success = await commit(next => D.saveTask(next, task), 'Your task is saved'); if (success) setEditor(null); return success }} remove={async () => { if (await commit(next => D.removeTask(next, editor.id), 'Removed. Your history is preserved.')) setEditor(null) }}/>}
     {managing && deck && <Modal title="One-time tasks" close={() => setManaging(false)}><p className="modal-description">Today-only tasks stay separate from your recurring habits.</p><div className="list-panel">{deck.tasks.filter(t => !D.isHabit(t) && !t.archived).map(task => <button className="task-manage-row" key={task.id} onClick={() => {setManaging(false);edit(task)}}><span><strong>{task.title}</strong><small>{D.pending(deck,today).some(c => c.taskId===task.id) ? 'In your deck' : 'Resolved · history preserved'}</small></span><Pencil size={17}/></button>)}{!deck.tasks.some(t => !D.isHabit(t) && !t.archived) && <p className="empty-list muted">No one-time tasks yet.</p>}</div><button className="primary full" onClick={() => {setManaging(false);add(false)}}><Plus size={17}/>Add a task</button></Modal>}
     {reordering && deck && <Modal title="A little order" close={() => setReordering(false)}><p className="modal-description">Choose what comes next. Use the arrows to move each card.</p><div className="reorder-list">{cards.map((card,i) => <div className="reorder-row" key={card.id}><span className="order-number">{i+1}</span><span>{card.title}</span><button disabled={i===0 || busy} aria-label={`Move ${card.title} up`} className="icon-button" onClick={() => void commit(next => { const ids = D.pending(next).map(c => c.id); const at = ids.indexOf(card.id); if (at > 0) { [ids[at-1],ids[at]]=[ids[at],ids[at-1]]; D.reorder(next,ids) } })}><ArrowUp size={17}/></button><button disabled={i===cards.length-1 || busy} aria-label={`Move ${card.title} down`} className="icon-button" onClick={() => void commit(next => { const ids = D.pending(next).map(c => c.id); const at=ids.indexOf(card.id); if (at>=0 && at<ids.length-1) { [ids[at],ids[at+1]]=[ids[at+1],ids[at]]; D.reorder(next,ids) } })}><ArrowDown size={17}/></button></div>)}</div><button className="primary full" onClick={() => setReordering(false)}>Done</button></Modal>}

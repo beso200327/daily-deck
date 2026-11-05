@@ -4,7 +4,7 @@ export type Outcome = 'completed' | 'postponed' | 'skipped' | 'missed' | 'pendin
 export type Visual = 'neutral' | 'walk' | 'read' | 'water' | 'focus' | 'stretch'
 export type Appearance = { day: Day; icon: Visual; photoId?: string }
 export type Task = { kind?: 'today' | 'habit'; icon?: Visual; photoId?: string; id: string; title: string; notes: string; minutes: number | null; weekdays: number[]; created: Day; through?: Day; archived: boolean }
-export type Event = { id: string; action: Action; at: string; day: Day; order: number; target?: string }
+export type Event = { sequence?: number; id: string; action: Action; at: string; day: Day; order: number; target?: string }
 export type Card = { icon?: Visual; photoId?: string; appearances?: Appearance[]; id: string; taskId: string; title: string; notes: string; minutes: number | null; habit: boolean; day: Day; initialOrder: number; events: Event[] }
 export type Deck = { version: 1; tasks: Task[]; cards: Card[] }
 export const visualNames: Record<Visual, string> = { neutral: 'Simple card', walk: 'Walking', read: 'Reading', water: 'Water', focus: 'Focus', stretch: 'Stretch' }
@@ -81,33 +81,34 @@ export function saveTask(deck: Deck, task: Task, today = dayKey()) {
   } else deck.tasks.push({ ...task, created: today, title: task.title.trim() })
   roll(deck, today)
 }
+function nextSequence(deck:Deck){return Math.max(0,...deck.cards.flatMap(c=>c.events.map(e=>e.sequence??0)))+1}
 export function act(deck: Deck, id: string, action: 'done' | 'later' | 'skip', now = new Date()) {
   const day = dayKey(now); roll(deck, day)
   const card = pending(deck, day).find(c => c.id === id)
   if (!card) return
-  card.events.push({ id: uid(), action, day, at: now.toISOString(), order: action === 'later' ? Math.max(0, ...deck.cards.map(order)) + 1 : order(card) })
+  card.events.push({ id: uid(), sequence: nextSequence(deck), action, day, at: now.toISOString(), order: action === 'later' ? Math.max(0, ...deck.cards.map(order)) + 1 : order(card) })
 }
 export function undoToken(deck: Deck, day = dayKey()) {
-  return deck.cards.flatMap(c => c.events.slice(-1)).filter(e => e.day === day && ['done', 'later', 'skip'].includes(e.action)).sort((a, b) => b.at.localeCompare(a.at))[0]?.id
+  return deck.cards.flatMap(c => c.events.slice(-1)).filter(e => e.day === day && ['done', 'later', 'skip'].includes(e.action)).sort((a, b) => (b.sequence??0)-(a.sequence??0) || b.at.localeCompare(a.at))[0]?.id
 }
 export function undo(deck: Deck, token: string, now = new Date()) {
   const card = deck.cards.find(c => c.events.at(-1)?.id === token)
   const last = card?.events.at(-1)
   if (!card || !last || last.day !== dayKey(now) || !['done', 'later', 'skip'].includes(last.action)) return false
-  card.events.push({ id: uid(), action: 'undo', target: token, at: now.toISOString(), day: dayKey(now), order: last.order }); return true
+  card.events.push({ id: uid(), sequence: nextSequence(deck), action: 'undo', target: token, at: now.toISOString(), day: dayKey(now), order: last.order }); return true
 }
 export function removeTask(deck: Deck, id: string, now = new Date()) {
   roll(deck, dayKey(now))
   const task = deck.tasks.find(t => t.id === id)
   if (!task) return
   task.archived = true
-  if (!isHabit(task)) deck.cards.filter(c => c.taskId === id && !terminal(c)).forEach(c => c.events.push({ id: uid(), action: 'delete', at: now.toISOString(), day: dayKey(now), order: order(c) }))
+  if (!isHabit(task)) deck.cards.filter(c => c.taskId === id && !terminal(c)).forEach(c => c.events.push({ id: uid(), sequence: nextSequence(deck), action: 'delete', at: now.toISOString(), day: dayKey(now), order: order(c) }))
 }
 export function reorder(deck: Deck, ids: string[], now = new Date()) {
   roll(deck, dayKey(now))
   const cards = pending(deck, dayKey(now))
   if (ids.length !== cards.length || new Set(ids).size !== cards.length || ids.some(id => !cards.some(c => c.id === id))) return false
-  ids.forEach((id, i) => cards.find(c => c.id === id)!.events.push({ id: uid(), action: 'reorder', at: now.toISOString(), day: dayKey(now), order: i })); return true
+  ids.forEach((id, i) => cards.find(c => c.id === id)!.events.push({ id: uid(), sequence: nextSequence(deck), action: 'reorder', at: now.toISOString(), day: dayKey(now), order: i })); return true
 }
 export function seed(today = dayKey()): Deck {
   const deck: Deck = { version: 1, tasks: [], cards: [] }

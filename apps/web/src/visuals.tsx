@@ -22,7 +22,7 @@ export function TaskVisual({icon = 'neutral', photoId, draft, small = false}: {i
   }, [photoId, draft])
   const url = source?.key === (draft ?? photoId) ? source?.url : undefined
   const Icon = visualIcons[icon]
-  return <div className={`task-visual visual-${icon} ${small ? 'small' : ''}`} data-visual={url ? 'photo' : icon}>
+  return <div className={`task-visual visual-${icon} ${small ? 'small' : ''}`} data-visual={draft || photoId ? 'photo' : icon}>
     {url && !failed ? <img src={url} alt="Task photo" draggable={false} onError={() => setFailed(true)}/> : <>
       {icon === 'walk' ? <WalkingArt/> : icon === 'read' ? <ReadingArt/> : icon === 'water' ? <WaterArt/> : <div className="neutral-art"><span><Icon size={64} strokeWidth={1.3}/></span><i/><i/></div>}
       {failed && <small className="photo-unavailable">Photo unavailable · choose a replacement in Edit</small>}
