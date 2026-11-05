@@ -1,10 +1,31 @@
 export type Day = string
 export type Action = 'done' | 'later' | 'skip' | 'delete' | 'undo' | 'reorder'
 export type Outcome = 'completed' | 'postponed' | 'skipped' | 'missed' | 'pending' | 'deleted'
-export type Task = { id: string; title: string; notes: string; minutes: number | null; weekdays: number[]; created: Day; through?: Day; archived: boolean }
+export type Visual = 'neutral' | 'walk' | 'read' | 'water' | 'focus' | 'stretch'
+export type Appearance = { day: Day; icon: Visual; photoId?: string }
+export type Task = { kind?: 'today' | 'habit'; icon?: Visual; photoId?: string; id: string; title: string; notes: string; minutes: number | null; weekdays: number[]; created: Day; through?: Day; archived: boolean }
 export type Event = { id: string; action: Action; at: string; day: Day; order: number; target?: string }
-export type Card = { id: string; taskId: string; title: string; notes: string; minutes: number | null; habit: boolean; day: Day; initialOrder: number; events: Event[] }
+export type Card = { icon?: Visual; photoId?: string; appearances?: Appearance[]; id: string; taskId: string; title: string; notes: string; minutes: number | null; habit: boolean; day: Day; initialOrder: number; events: Event[] }
 export type Deck = { version: 1; tasks: Task[]; cards: Card[] }
+export const visualNames: Record<Visual, string> = { neutral: 'Simple card', walk: 'Walking', read: 'Reading', water: 'Water', focus: 'Focus', stretch: 'Stretch' }
+export const isHabit = (task: Task) => task.kind === 'habit' || (task.kind === undefined && task.weekdays.length > 0)
+export function appearance(card: Card, day = dayKey()): { icon: Visual; photoId?: string } {
+  const snapshot = card.appearances?.filter(a => a.day <= day).at(-1)
+  return snapshot ? {icon:snapshot.icon, photoId:snapshot.photoId} : {icon:card.icon ?? 'neutral', photoId:card.photoId}
+}
+// Only the original starter title + notes pairs receive starter illustrations on migration.
+// Other existing tasks receive a neutral icon; IDs, schedules, snapshots and events never change.
+function inferredIcon(value: {title: string; notes: string}): Visual {
+  if (value.title === 'Walk for 20 minutes' && value.notes === 'A little movement. A better day.') return 'walk'
+  if (value.title === 'Read 10 pages' && value.notes === 'A few pages, a new perspective.') return 'read'
+  if (value.title === 'Drink a glass of water' && value.notes === 'Pause. Take a sip. Begin again.') return 'water'
+  return 'neutral'
+}
+export function migrate(deck: Deck): Deck {
+  for (const task of deck.tasks) { task.kind ??= task.weekdays.length ? 'habit' : 'today'; task.icon ??= inferredIcon(task) }
+  for (const card of deck.cards) card.icon ??= inferredIcon(card)
+  return deck
+}
 export const STORAGE_KEY = 'daily-deck.web.v1'
 export const uid = () => typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2, '0')).join('')
 export const dayKey = (date = new Date()): Day => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
@@ -30,9 +51,9 @@ export function roll(deck: Deck, today = dayKey()) {
   for (const task of deck.tasks.filter(t => !t.archived)) {
     let day = task.through ? addDays(task.through, 1) : task.created
     while (day <= today) {
-      const scheduled = task.weekdays.length ? task.weekdays.includes(dateOf(day).getDay()) : day === task.created
+      const scheduled = isHabit(task) ? task.weekdays.includes(dateOf(day).getDay()) : day === task.created
       if (scheduled && !deck.cards.some(c => c.taskId === task.id && c.day === day)) {
-        deck.cards.push({ id: uid(), taskId: task.id, title: task.title, notes: task.notes, minutes: task.minutes, habit: !!task.weekdays.length, day, initialOrder: Math.max(0, ...deck.cards.map(order)) + 1, events: [] })
+        deck.cards.push({ id: uid(), taskId: task.id, title: task.title, notes: task.notes, minutes: task.minutes, icon: task.icon ?? 'neutral', photoId: task.photoId, habit: isHabit(task), day, initialOrder: Math.max(0, ...deck.cards.map(order)) + 1, events: [] })
       }
       day = addDays(day, 1)
     }
@@ -41,13 +62,23 @@ export function roll(deck: Deck, today = dayKey()) {
 }
 export function saveTask(deck: Deck, task: Task, today = dayKey()) {
   if (!task.title.trim() || (task.minutes !== null && (!Number.isInteger(task.minutes) || task.minutes < 1 || task.minutes > 1440))) throw new Error('Add a title and an estimate from 1 to 1440 minutes.')
+  if (isHabit(task) && !task.weekdays.length) throw new Error('Choose at least one weekday for a recurring habit.')
+  if (task.weekdays.some(n => !Number.isInteger(n) || n < 0 || n > 6)) throw new Error('Choose valid weekdays.')
+  task = { ...task, kind: isHabit(task) ? 'habit' : 'today', weekdays: isHabit(task) ? [...new Set(task.weekdays)] : [], icon: task.icon ?? 'neutral' }
   roll(deck, today)
   const existing = deck.tasks.find(t => t.id === task.id)
   if (existing) {
+    if (isHabit(existing) !== isHabit(task)) throw new Error('Create a new task to change its type; existing history is preserved.')
     const through = existing.through
     Object.assign(existing, task, { through, title: task.title.trim() })
-    if (!task.weekdays.length) deck.cards.filter(c => c.taskId === task.id && !terminal(c)).forEach(c => Object.assign(c, { title: task.title.trim(), notes: task.notes, minutes: task.minutes }))
-  } else deck.tasks.push({ ...task, title: task.title.trim() })
+    if (!isHabit(task)) deck.cards.filter(c => c.taskId === task.id && !terminal(c)).forEach(c => Object.assign(c, { title: task.title.trim(), notes: task.notes, minutes: task.minutes }))
+    for (const card of pending(deck, today).filter(c => c.taskId === task.id)) {
+      const before = appearance(card, today)
+      if (before.icon !== task.icon || before.photoId !== task.photoId) {
+        card.appearances = [...(card.appearances ?? []).filter(a => a.day !== today), {day: today, icon: task.icon!, photoId: task.photoId}]
+      }
+    }
+  } else deck.tasks.push({ ...task, created: today, title: task.title.trim() })
   roll(deck, today)
 }
 export function act(deck: Deck, id: string, action: 'done' | 'later' | 'skip', now = new Date()) {
@@ -70,7 +101,7 @@ export function removeTask(deck: Deck, id: string, now = new Date()) {
   const task = deck.tasks.find(t => t.id === id)
   if (!task) return
   task.archived = true
-  if (!task.weekdays.length) deck.cards.filter(c => c.taskId === id && !terminal(c)).forEach(c => c.events.push({ id: uid(), action: 'delete', at: now.toISOString(), day: dayKey(now), order: order(c) }))
+  if (!isHabit(task)) deck.cards.filter(c => c.taskId === id && !terminal(c)).forEach(c => c.events.push({ id: uid(), action: 'delete', at: now.toISOString(), day: dayKey(now), order: order(c) }))
 }
 export function reorder(deck: Deck, ids: string[], now = new Date()) {
   roll(deck, dayKey(now))
@@ -81,7 +112,7 @@ export function reorder(deck: Deck, ids: string[], now = new Date()) {
 export function seed(today = dayKey()): Deck {
   const deck: Deck = { version: 1, tasks: [], cards: [] }
   for (const [title, notes, minutes] of [['Walk for 20 minutes', 'A little movement. A better day.', 20], ['Read 10 pages', 'A few pages, a new perspective.', 15], ['Drink a glass of water', 'Pause. Take a sip. Begin again.', 2]] as const) {
-    saveTask(deck, { id: uid(), title, notes, minutes, weekdays: [0, 1, 2, 3, 4, 5, 6], created: today, archived: false }, today)
+    saveTask(deck, { id: uid(), title, notes, minutes, icon: inferredIcon({title, notes}), kind: 'habit', weekdays: [0, 1, 2, 3, 4, 5, 6], created: today, archived: false }, today)
   }
   return deck
 }
@@ -106,7 +137,11 @@ export function decode(raw: string): Deck {
   if (d.version !== 1 || !Array.isArray(d.tasks) || !Array.isArray(d.cards) ||
     !d.tasks.every(t => string(t.id) && string(t.title) && string(t.notes) && validDay(t.created) && (t.through === undefined || validDay(t.through)) && typeof t.archived === 'boolean' && Array.isArray(t.weekdays) && t.weekdays.every(n => Number.isInteger(n) && n >= 0 && n <= 6) && (t.minutes === null || Number.isInteger(t.minutes))) ||
     !d.cards.every(c => string(c.id) && string(c.taskId) && string(c.title) && string(c.notes) && typeof c.habit === 'boolean' && validDay(c.day) && Number.isFinite(c.initialOrder) && Array.isArray(c.events) && c.events.every(e => string(e.id) && ['done', 'later', 'skip', 'delete', 'undo', 'reorder'].includes(e.action) && validDay(e.day) && !Number.isNaN(Date.parse(e.at)) && Number.isFinite(e.order)))) throw new Error('Saved deck is unreadable or uses an unsupported version. Your stored data has not been changed.')
-  return d
+  const validVisual = (v: unknown) => v === undefined || (typeof v === 'string' && Object.hasOwn(visualNames, v))
+  const validPhoto = (v: unknown) => v === undefined || (typeof v === 'string' && v.length > 0 && v.length < 200)
+  if (!d.tasks.every(t => (t.kind === undefined || t.kind === 'today' || t.kind === 'habit') && validVisual(t.icon) && validPhoto(t.photoId)) ||
+      !d.cards.every(c => validVisual(c.icon) && validPhoto(c.photoId) && (c.appearances === undefined || (Array.isArray(c.appearances) && c.appearances.every(a => validDay(a.day) && validVisual(a.icon) && validPhoto(a.photoId)))))) throw new Error('Saved image metadata is unreadable. Your stored data has not been changed.')
+  return migrate(d)
 }
 export function load(storage: Pick<Storage, 'getItem'>, today = dayKey()): Deck { const raw = storage.getItem(STORAGE_KEY); const deck = raw === null ? seed(today) : decode(raw); roll(deck, today); return deck }
 export function persist(storage: Pick<Storage, 'setItem'>, deck: Deck) { storage.setItem(STORAGE_KEY, JSON.stringify(deck)) }

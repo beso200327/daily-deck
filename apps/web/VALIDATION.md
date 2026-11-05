@@ -1,47 +1,29 @@
 # Web validation — November 5, 2026
 
-## Passed in this environment
+This update adds task-specific visuals, persistent photos, actual stacked task cards, explicit task types, PWA installation/offline caching, and a labeled browser-only Widget preview. No manual deployment is part of this task.
 
-- `npm test`: **22 model tests passed** (Vitest).
-- `npm run build`: TypeScript checking and Vite production build passed. Static output in `dist`; approximately 264 KB total, with the main JS approximately 72 KB gzipped.
-- `npm run test:e2e`: **17 browser tests passed; 1 intentionally skipped**. The skipped case is the desktop copy of the real-touch test; that same test passed in the mobile project.
-- Real Chromium against the built production app, with desktop 1440×1000 and iPhone-sized touch emulation. Additional overflow checks passed at 320, 768, and 1024 CSS pixels on Today, Habits, and Progress.
-- Browser checks exercised pointer swipes, actual CDP touch events, Done/Later/Skip/undo, keyboard Enter, modal focus and Escape, task CRUD, reordering, habit schedule editing and deletion without history loss, completion timestamps, filters, summary period selection, reload persistence, and preservation of malformed local data.
-- Browser clock simulated local midnight in America/New_York: a new independent habit deck appeared and the prior day's postponed and missed outcomes stayed visible. Model tests additionally covered weekday scheduling, DST, backfill, one-time carryover, period summaries, undo expiry, persistence and storage failure behavior.
-- Reduced-motion mode and layout screenshots were checked; Today at desktop and mobile, desktop Habits, and mobile Progress screenshots were visually inspected.
-- SHA-256 comparison confirmed **all 23 pre-existing native source/project/test/helper files remained byte-for-byte unchanged**. The root README only gained a link to the web instructions.
+## Model and build checks
 
-An initial browser test run caught a dialog focus issue. It was fixed by focusing the first input after opening the native HTML dialog. The final complete run above passed.
+- `npm test`: 33 model tests passed. These include the existing recurrence/action/history suite and new tests for in-place version-one migration, unrelated neutral visuals, today-only versus recurring creation, exact-once occurrence generation, selected weekdays, validation, dated photo/icon snapshots, JSON reference persistence, immutable task type on editing, and drafts saved across midnight.
+- `npm run build`: TypeScript and the optimized Vite build passed, including generated versioned `sw.js`, manifest, and installation icons.
+- Existing native iOS/WidgetKit code is preserved. Native SDK builds, signing, simulator runs, OS widget behavior and App Group provisioning were not verified by this web environment.
 
-## Deployment attempt
+## Browser regression evidence
 
-No existing `.vercel/project.json` or Vercel configuration was present before implementation. The new configuration lives only under `apps/web`.
+Desktop Chromium and an iPhone-sized Chromium touch viewport are used against the **production build**, with additional layout checks at 320, 768, and 1024 CSS pixels. The full suite passed with **43 browser tests passed and one intentional desktop-only touch skip**. The real-touch case passed on the mobile project.
 
-`npx vercel whoami` (CLI 65.11.0) returned `Logged out`.
+The suite exercises task actions, keyboard controls, recurrence and midnight rollover; one-time and recurring entry points; immediate Habits rendering; duplicate-save prevention; real behind-card images/text and keyed DOM promotion without changing deck bounds; actual mouse/touch gestures; zero/one/two-card states and reduced motion; duplicate animation-action prevention; undo; legacy ID/event preservation; completion timestamps and summaries; and responsive layouts.
 
-The authorized attempt `npx vercel deploy --temporary --yes --json` failed with exit code 1:
+Photo checks use actual browser canvas compression and IndexedDB: a generated 1800×900 PNG becomes a 1200×600 JPEG under 1 MB. The blob survives reloads, stays with the right task across Later/undo, and never appears as base64 or a blob URL in localStorage. Replace and remove are exercised, including retaining old immutable blobs for history. Unsupported input and injected storage-denial failures show errors without saving invalid references.
 
-```text
-Temporary deployments aren't available for this attempt. Log in to continue.
-status: error
-reason: login_required
-userActionRequired: true
-next command: vercel login
-```
+PWA checks verify manifest metadata and Apple icon links, register the actual built service worker, reopen offline after a completed action, and verify persisted state. An actual replacement worker (registered through a changed script URL for the test) waits while an unsaved form is open; Reload update is disabled until the form is saved, and activation only occurs after explicit consent, preserving the saved task.
 
-**No working deployment URL exists from this attempt. No live URL has been verified.** No unrelated Vercel project was linked or modified.
+Browser testing exposed and corrected first-install update notices, desktop grid auto-margin shifts after queue changes, compact-screen horizontal overflow, and action-label spacing above the fixed mobile navigation. Tests wait for real saves and transition locks rather than reading storage before an asynchronous commit finishes.
 
-To unblock, run `npx vercel login` from `apps/web` in the deployment environment and approve the official Vercel browser sign-in. Credentials must not be posted in chat. Then deploy this directory to a new project and verify its actual HTTPS URL. README has the complete commands.
+## Remaining limitations
 
-## Remaining limits
-
-- Chromium touch emulation is not a real iPhone or Safari check. Actual Mac Safari and iPhone Safari remain unverified until the hosted URL is available.
-- Browser-local data does not sync between browsers, devices, deployment origins, or the native iPhone app. Clearing site storage removes it. No offline app-shell cache is implemented.
-- The existing native widget stays part of the SwiftUI app; the web app provides no interactive iOS widget.
-- Existing native SDK build/signing limitations are unchanged. Native tests were preserved; they were not rerun as part of this independent web change.
-
-## Manual GitHub deployment preparation
-
-For the GitHub publication pass, `npm test` (22 passed), `npm run build`, and the full production-browser suite (17 passed, one intentional desktop-only touch skip) were run again successfully. The native Xcode project structural validator passed, and all 23 native source/project/test/helper files matched their pre-publication hashes. Source candidates were checked to exclude dependency directories, generated build output, environment files, and known credential patterns.
-
-Manual Vercel import settings are now documented in README: branch `main`, root `apps/web`, Vite, install `npm ci`, build `npm run build`, output `dist`, Node 24.x, environment variables **none**. No Vercel deployment was attempted during this publication pass; the earlier authentication failure above is historical evidence only.
+- Chromium device emulation is not physical iPhone Safari. Actual Home Screen installation, Safari photo-library/HEIC conversion, and Safari accessibility/gesture behavior remain unverified on hardware.
+- Data, images and caches are local to the browser/origin. No cross-device, native-app, or cross-profile sync. Clearing/evicting site storage can remove them. Photos are not exported/backed up; retained historical blobs can consume local quota.
+- Unsupported image types (including unconverted HEIC) require conversion to JPEG/PNG/WebP/AVIF.
+- Web installation and Widget preview are not a native iOS widget. The native WidgetKit extension still needs Xcode and a signed iPhone or simulator for verification.
+- Pushing the GitHub branch may trigger an existing automatic Vercel Git deployment. No manual Vercel deployment is performed or claimed here.
