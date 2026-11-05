@@ -1,0 +1,593 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+		AAA88E5F2E13CBF6727DD19B = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+		2DC0D748D1FBB963C589AC7C = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = DailyDeck/Widget/DailyDeckWidget.swift;
+			sourceTree = "<group>";
+		};
+		3582FA4B373B06A775731038 = {
+			isa = PBXBuildFile;
+			fileRef = 2DC0D748D1FBB963C589AC7C;
+		};
+		9AE702BDD7A182BD3AEA0248 = {
+			isa = PBXGroup;
+			name = Widget;
+			children = (
+				2DC0D748D1FBB963C589AC7C,
+			);
+			sourceTree = "<group>";
+		};
+		4B962A5FB2697AA7A5179164 = {
+			isa = PBXFileReference;
+			explicitFileType = "wrapper.app-extension";
+			includeInIndex = 0;
+			path = DailyDeckWidget.appex;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		282D9E003E8E7CAD7C11BE10 = {
+			isa = XCSwiftPackageProductDependency;
+			package = AAA88E5F2E13CBF6727DD19B;
+			productName = DailyDeckCore;
+		};
+		0D43E08F21E77ABF8BD5992E = {
+			isa = PBXBuildFile;
+			productRef = 282D9E003E8E7CAD7C11BE10;
+		};
+		1FA716FB94F427DD451C8614 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3582FA4B373B06A775731038,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7B51E51936A0A0B8EAA0BFB9 = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0D43E08F21E77ABF8BD5992E,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		45D3CEDC9EE9FFE2F90080A8 = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9D6FEFD856CE75BFA9701214 = {
+			isa = XCBuildConfiguration;
+			name = Debug;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.dailydeck.app.widget;
+				INFOPLIST_FILE = "DailyDeck/Resources/Widget-Info.plist";
+				CODE_SIGN_ENTITLEMENTS = DailyDeck/Resources/Widget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				SWIFT_VERSION = 5.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 1.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				ENABLE_TESTABILITY = YES;
+			};
+		};
+		2E4D6CECB4D4816BC33DDBF1 = {
+			isa = XCBuildConfiguration;
+			name = Release;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.dailydeck.app.widget;
+				INFOPLIST_FILE = "DailyDeck/Resources/Widget-Info.plist";
+				CODE_SIGN_ENTITLEMENTS = DailyDeck/Resources/Widget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				SWIFT_VERSION = 5.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 1.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+			};
+		};
+		3F8066958261F9BB5D62C351 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9D6FEFD856CE75BFA9701214,
+				2E4D6CECB4D4816BC33DDBF1,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8587A14DDF686D44DAF9769B = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3F8066958261F9BB5D62C351;
+			buildPhases = (
+				1FA716FB94F427DD451C8614,
+				7B51E51936A0A0B8EAA0BFB9,
+				45D3CEDC9EE9FFE2F90080A8,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = DailyDeckWidget;
+			productName = DailyDeckWidget;
+			productReference = 4B962A5FB2697AA7A5179164;
+			productType = "com.apple.product-type.app-extension";
+			packageProductDependencies = (
+				282D9E003E8E7CAD7C11BE10,
+			);
+		};
+		CB52C9843D0C3C5837801251 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = DailyDeck/App/DailyDeckApp.swift;
+			sourceTree = "<group>";
+		};
+		A0C39ED4FF14BFBB911832DC = {
+			isa = PBXBuildFile;
+			fileRef = CB52C9843D0C3C5837801251;
+		};
+		43FA0C88CF82A6DBC54E4A13 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = DailyDeck/App/ManageViews.swift;
+			sourceTree = "<group>";
+		};
+		CBF0DC93154B0EFCFCEA1BFA = {
+			isa = PBXBuildFile;
+			fileRef = 43FA0C88CF82A6DBC54E4A13;
+		};
+		28D5F4CC02C9D904846556FD = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = DailyDeck/App/ProgressScreen.swift;
+			sourceTree = "<group>";
+		};
+		107457B70B614304FEEFF33A = {
+			isa = PBXBuildFile;
+			fileRef = 28D5F4CC02C9D904846556FD;
+		};
+		974E8D0D1BAEBA16841B4008 = {
+			isa = PBXGroup;
+			name = App;
+			children = (
+				CB52C9843D0C3C5837801251,
+				43FA0C88CF82A6DBC54E4A13,
+				28D5F4CC02C9D904846556FD,
+			);
+			sourceTree = "<group>";
+		};
+		5BB72557C0AD14CE6E224798 = {
+			isa = PBXFileReference;
+			explicitFileType = wrapper.application;
+			includeInIndex = 0;
+			path = DailyDeck.app;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		A24C7520B5E044C696CBAA4C = {
+			isa = XCSwiftPackageProductDependency;
+			package = AAA88E5F2E13CBF6727DD19B;
+			productName = DailyDeckCore;
+		};
+		5D6E58A7696CC32D92CFAAB8 = {
+			isa = PBXBuildFile;
+			productRef = A24C7520B5E044C696CBAA4C;
+		};
+		8BF729FFE074CAEE622C0292 = {
+			isa = PBXFileReference;
+			lastKnownFileType = folder.assetcatalog;
+			path = DailyDeck/Resources/Assets.xcassets;
+			sourceTree = "<group>";
+		};
+		C58AC9780A4F28E1D1224859 = {
+			isa = PBXGroup;
+			name = Resources;
+			children = (
+				8BF729FFE074CAEE622C0292,
+			);
+			sourceTree = "<group>";
+		};
+		214FAD66617094FC1E2341C1 = {
+			isa = PBXBuildFile;
+			fileRef = 8BF729FFE074CAEE622C0292;
+		};
+		D3E8AEAD0E49FCAB4B5839E1 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0C39ED4FF14BFBB911832DC,
+				CBF0DC93154B0EFCFCEA1BFA,
+				107457B70B614304FEEFF33A,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2B37E81E66AA65979B17C110 = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5D6E58A7696CC32D92CFAAB8,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		59476EB75A03E13372BBF7C0 = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				214FAD66617094FC1E2341C1,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		875F7A420F93A74A61FAD59E = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 244210E48437B6556980A702;
+			proxyType = 1;
+			remoteGlobalIDString = 8587A14DDF686D44DAF9769B;
+			remoteInfo = DailyDeckWidget;
+		};
+		5414CB51E0394734F88B9542 = {
+			isa = PBXTargetDependency;
+			target = 8587A14DDF686D44DAF9769B;
+			targetProxy = 875F7A420F93A74A61FAD59E;
+		};
+		439B13A7FEBF5FB6A659C3A3 = {
+			isa = PBXBuildFile;
+			fileRef = 4B962A5FB2697AA7A5179164;
+			settings = {
+				ATTRIBUTES = (
+					RemoveHeadersOnCopy,
+				);
+			};
+		};
+		DD615B768CF8ACFE2ED53E52 = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				439B13A7FEBF5FB6A659C3A3,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B4587FB4B106BEFC89F2FE13 = {
+			isa = XCBuildConfiguration;
+			name = Debug;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.dailydeck.app;
+				INFOPLIST_FILE = "DailyDeck/Resources/App-Info.plist";
+				CODE_SIGN_ENTITLEMENTS = DailyDeck/Resources/App.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				SWIFT_VERSION = 5.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 1.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				ENABLE_TESTABILITY = YES;
+			};
+		};
+		1D188ECD9BB4B1B995616092 = {
+			isa = XCBuildConfiguration;
+			name = Release;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.dailydeck.app;
+				INFOPLIST_FILE = "DailyDeck/Resources/App-Info.plist";
+				CODE_SIGN_ENTITLEMENTS = DailyDeck/Resources/App.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				SWIFT_VERSION = 5.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 1.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+			};
+		};
+		47FC72A25EEAA8D7667709E3 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B4587FB4B106BEFC89F2FE13,
+				1D188ECD9BB4B1B995616092,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		9B32A086E27A33E57AF9131F = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 47FC72A25EEAA8D7667709E3;
+			buildPhases = (
+				D3E8AEAD0E49FCAB4B5839E1,
+				2B37E81E66AA65979B17C110,
+				59476EB75A03E13372BBF7C0,
+				DD615B768CF8ACFE2ED53E52,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5414CB51E0394734F88B9542,
+			);
+			name = DailyDeck;
+			productName = DailyDeck;
+			productReference = 5BB72557C0AD14CE6E224798;
+			productType = "com.apple.product-type.application";
+			packageProductDependencies = (
+				A24C7520B5E044C696CBAA4C,
+			);
+		};
+		FC3B8431B41DAB10681809A4 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = Tests/DeckTests.swift;
+			sourceTree = "<group>";
+		};
+		CD766B86EB19702290146371 = {
+			isa = PBXBuildFile;
+			fileRef = FC3B8431B41DAB10681809A4;
+		};
+		D94ECC230D8D49CD8414204F = {
+			isa = PBXGroup;
+			name = Tests;
+			children = (
+				FC3B8431B41DAB10681809A4,
+			);
+			sourceTree = "<group>";
+		};
+		E7F08BCC397888750F5CB9BD = {
+			isa = PBXFileReference;
+			explicitFileType = wrapper.cfbundle;
+			includeInIndex = 0;
+			path = DailyDeckTests.xctest;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		6A57451D0B78C0613E790202 = {
+			isa = XCSwiftPackageProductDependency;
+			package = AAA88E5F2E13CBF6727DD19B;
+			productName = DailyDeckCore;
+		};
+		3912F836CF715E1CFFC845EA = {
+			isa = PBXBuildFile;
+			productRef = 6A57451D0B78C0613E790202;
+		};
+		B04EBD63DB9316154A43961A = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 244210E48437B6556980A702;
+			proxyType = 1;
+			remoteGlobalIDString = 9B32A086E27A33E57AF9131F;
+			remoteInfo = DailyDeck;
+		};
+		B1A399646E15C26CD90281AF = {
+			isa = PBXTargetDependency;
+			target = 9B32A086E27A33E57AF9131F;
+			targetProxy = B04EBD63DB9316154A43961A;
+		};
+		798B65A4B63A4D08FDD4C755 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CD766B86EB19702290146371,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		497639E2F38DB3F946CE62A2 = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3912F836CF715E1CFFC845EA,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		22341BB87F410D35D057D37C = {
+			isa = XCBuildConfiguration;
+			name = Debug;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.dailydeck.app.tests;
+				GENERATE_INFOPLIST_FILE = YES;
+				CODE_SIGN_STYLE = Automatic;
+				SWIFT_VERSION = 5.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DailyDeck.app/DailyDeck";
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				ENABLE_TESTING_SEARCH_PATHS = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				ENABLE_TESTABILITY = YES;
+			};
+		};
+		A188B1844D481F2A55033242 = {
+			isa = XCBuildConfiguration;
+			name = Release;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.dailydeck.app.tests;
+				GENERATE_INFOPLIST_FILE = YES;
+				CODE_SIGN_STYLE = Automatic;
+				SWIFT_VERSION = 5.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DailyDeck.app/DailyDeck";
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				ENABLE_TESTING_SEARCH_PATHS = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+			};
+		};
+		66347432B32AAA402CD1360D = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				22341BB87F410D35D057D37C,
+				A188B1844D481F2A55033242,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E5B4A42C1A9B11F842B19C64 = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 66347432B32AAA402CD1360D;
+			buildPhases = (
+				798B65A4B63A4D08FDD4C755,
+				497639E2F38DB3F946CE62A2,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B1A399646E15C26CD90281AF,
+			);
+			name = DailyDeckTests;
+			productName = DailyDeckTests;
+			productReference = E7F08BCC397888750F5CB9BD;
+			productType = "com.apple.product-type.bundle.unit-test";
+			packageProductDependencies = (
+				6A57451D0B78C0613E790202,
+			);
+		};
+		158EFF22A6EF5F98E381D118 = {
+			isa = PBXGroup;
+			name = Products;
+			children = (
+				4B962A5FB2697AA7A5179164,
+				5BB72557C0AD14CE6E224798,
+				E7F08BCC397888750F5CB9BD,
+			);
+			sourceTree = "<group>";
+		};
+		0D6E4079E36703EBD37C0072 = {
+			isa = PBXGroup;
+			children = (
+				9AE702BDD7A182BD3AEA0248,
+				974E8D0D1BAEBA16841B4008,
+				C58AC9780A4F28E1D1224859,
+				D94ECC230D8D49CD8414204F,
+				158EFF22A6EF5F98E381D118,
+			);
+			sourceTree = "<group>";
+		};
+		73EBF6644258C120893E685D = {
+			isa = XCBuildConfiguration;
+			name = Debug;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				SWIFT_VERSION = 5.0;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				ENABLE_TESTABILITY = YES;
+			};
+		};
+		0B0C687DF8B6B8DC790B519C = {
+			isa = XCBuildConfiguration;
+			name = Release;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				SWIFT_VERSION = 5.0;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+			};
+		};
+		76F8DEC3DFE0BDB465198890 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				73EBF6644258C120893E685D,
+				0B0C687DF8B6B8DC790B519C,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		244210E48437B6556980A702 = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+			};
+			buildConfigurationList = 76F8DEC3DFE0BDB465198890;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 0D6E4079E36703EBD37C0072;
+			productRefGroup = 158EFF22A6EF5F98E381D118;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8587A14DDF686D44DAF9769B,
+				9B32A086E27A33E57AF9131F,
+				E5B4A42C1A9B11F842B19C64,
+			);
+			packageReferences = (
+				AAA88E5F2E13CBF6727DD19B,
+			);
+		};
+	};
+	rootObject = 244210E48437B6556980A702;
+}
