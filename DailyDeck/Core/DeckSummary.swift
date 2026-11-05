@@ -14,7 +14,7 @@ public struct DeckSummary: Equatable {
     public var pending = 0
     public var deleted = 0
     public var total: Int { completed + postponed + skipped + missed + pending + deleted }
-    public var completionFraction: Double { total == 0 ? 0 : Double(completed) / Double(total) }
+    public var completionFraction: Double { total == deleted ? 0 : Double(completed) / Double(total - deleted) }
     public var description: String {
         [(completed, "completed"), (postponed, "postponed"), (skipped, "skipped"),
          (missed, "missed"), (pending, "pending"), (deleted, "deleted")]
@@ -64,7 +64,9 @@ public extension DeckState {
     }
     /// Undo token can be recovered after a restart or a widget interaction.
     func latestUndoableEvent(on day: Day) -> UUID? {
-        occurrences.compactMap { $0.events.last }.filter {
+        occurrences.filter { occurrence in
+            !occurrence.habit || !entries.contains(where: { $0.id == occurrence.entryID && $0.archived })
+        }.compactMap { $0.events.last }.filter {
             $0.day == day && [.done, .later, .skip].contains($0.action)
         }.max(by: { $0.at < $1.at })?.id
     }

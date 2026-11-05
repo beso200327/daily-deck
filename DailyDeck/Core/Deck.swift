@@ -125,6 +125,7 @@ public struct DeckState: Codable, Equatable {
     public mutating func undo(eventID: UUID, now: Date, calendar: Calendar = .current) -> Bool {
         let today = Day(now, calendar: calendar)
         guard let i = occurrences.firstIndex(where: { $0.events.contains(where: { $0.id == eventID }) }), let event = occurrences[i].events.last, event.id == eventID, event.day == today, [.done, .later, .skip].contains(event.action) else { return false }
+        if occurrences[i].habit && entries.contains(where: { $0.id == occurrences[i].entryID && $0.archived }) { return false }
         occurrences[i].events.append(DeckEvent(action: .undo, at: now, day: today, order: event.order, target: eventID))
         return true
     }
@@ -156,8 +157,13 @@ public struct DeckState: Codable, Equatable {
         roll(now: now, calendar: calendar)
         guard let i = entries.firstIndex(where: { $0.id == id }) else { return }
         entries[i].archived = true
-        // Preserve all historical habit occurrences, including today's.
-        if !entries[i].isHabit {
+        // Preserve past and terminal habit occurrences; deletion is its own outcome.
+        let today = Day(now, calendar: calendar)
+        if entries[i].isHabit {
+            for j in occurrences.indices where occurrences[j].entryID == id && !occurrences[j].terminal && occurrences[j].day >= today {
+                occurrences[j].events.append(DeckEvent(action: .delete, at: now, day: max(today, occurrences[j].day), order: occurrences[j].order))
+            }
+        } else {
             for j in occurrences.indices where occurrences[j].entryID == id && !occurrences[j].terminal {
                 occurrences[j].events.append(DeckEvent(action: .delete, at: now, day: Day(now, calendar: calendar), order: occurrences[j].order))
             }

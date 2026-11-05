@@ -36,7 +36,7 @@ struct EntryEditor: View {
                     Section { Button("Delete \(habit ? "habit" : "task")", role: .destructive) { confirmDelete = true } }
                 }
                 if let error = model.error {
-                    Section("Could not save") { Text(error).foregroundStyle(.red); Text("Your edits are still here. Try Save again after resolving the storage issue.") }
+                    Section("Could not save") { Text(error).foregroundStyle(.red); Text("Your edits are still here. Resolve the storage issue, then retry the action.") }
                 }
             }.scrollContentBackground(.hidden).background(Color.ivory)
                 .navigationTitle(entry == nil ? (habit ? "New habit" : "New task") : "Edit \(habit ? "habit" : "task")")
@@ -49,11 +49,12 @@ struct EntryEditor: View {
                         if model.error == nil { dismiss() }
                     }.disabled(!valid) }
                 }
-                .confirmationDialog("Delete this \(habit ? "habit" : "task")?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                    Button("Delete", role: .destructive) {
+                .alert("Delete \(habit ? "habit" : "task")?", isPresented: $confirmDelete) {
+                    Button("Delete \(habit ? "habit" : "task")", role: .destructive) {
                         if let entry { model.update { $0.delete(entry.id, now: Date()) }; if model.error == nil { dismiss() } }
                     }
-                } message: { Text(habit ? "Future cards will stop. Today's occurrence and all history will remain." : "This task will leave the deck. Its history will remain, marked deleted.") }
+                    Button("Cancel", role: .cancel) {}
+                } message: { Text(habit ? "This removes the habit and its unfinished tasks from today and future days. Your history stays." : "This task will leave the deck. Its history will remain, marked deleted.") }
                 .onAppear {
                     if let entry { title = entry.title; notes = entry.notes; minutes = entry.minutes.map(String.init) ?? ""; days = entry.weekdays }
                 }

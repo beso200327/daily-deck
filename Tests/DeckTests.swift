@@ -97,12 +97,40 @@ final class DeckTests: XCTestCase {
         s.roll(now: now.addingTimeInterval(86400), calendar: calendar)
         XCTAssertEqual(s.occurrences.count, 1)
     }
-    func testDeletingHabitKeepsHistoryAndTodaysCard() {
-        var s = state(); let original = s.occurrences[0]
+    func testDeletingHabitRemovesPendingAndKeepsDeletionRecord() {
+        var s = state()
         s.delete(s.entries[0].id, now: now, calendar: calendar)
         s.roll(now: now.addingTimeInterval(3 * 86400), calendar: calendar)
-        XCTAssertEqual(s.occurrences, [original])
+        XCTAssertTrue(s.pending(on: day(now)).isEmpty)
+        XCTAssertEqual(s.occurrences[0].outcome(on: day(now), today: day(now)), .deleted)
         XCTAssertEqual(s.history(on: day(now), today: day(now)).count, 1)
+    }
+    func testHabitDeletionPreservesTerminalAndPastButClosesFuture() {
+        for action in [Action.later, .done, .skip] {
+            var s = state()
+            let id = s.entries[0].id
+            s.act(action, id: s.occurrences[0].id, now: now, calendar: calendar)
+            let original = s.occurrences[0]
+            s.roll(now: now.addingTimeInterval(2 * 86400), calendar: calendar)
+            s.delete(id, now: now, calendar: calendar)
+            XCTAssertTrue(s.entries[0].archived)
+            XCTAssertTrue(s.pending(on: day(now)).isEmpty)
+            if action != .later {
+                XCTAssertEqual(s.occurrences[0], original)
+                XCTAssertFalse(s.undo(eventID: original.events.last!.id, now: now, calendar: calendar))
+                XCTAssertNil(s.latestUndoableEvent(on: day(now)))
+            }
+            XCTAssertTrue(s.occurrences.dropFirst().allSatisfy { $0.terminal })
+            let count = s.occurrences.count
+            s.roll(now: now.addingTimeInterval(5 * 86400), calendar: calendar)
+            XCTAssertEqual(s.occurrences.count, count)
+        }
+    }
+    func testDeletionDoesNotReduceCompletionFraction() {
+        var summary = DeckSummary()
+        summary.completed = 1
+        summary.deleted = 2
+        XCTAssertEqual(summary.completionFraction, 1)
     }
     func testDeletingTaskRemovesPendingButPreservesRecord() {
         var s = state(habit: false)

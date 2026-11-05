@@ -117,12 +117,12 @@ export function act(deck: Deck, id: string, action: 'done' | 'later' | 'skip', n
   card.events.push({ id: uid(), sequence: nextSequence(deck), action, day, at: now.toISOString(), order: action === 'later' ? Math.max(0, ...deck.cards.map(order)) + 1 : order(card) })
 }
 export function undoToken(deck: Deck, day = dayKey()) {
-  return deck.cards.flatMap(c => c.events.slice(-1)).filter(e => e.day === day && ['done', 'later', 'skip'].includes(e.action)).sort((a, b) => (b.sequence??0)-(a.sequence??0) || b.at.localeCompare(a.at))[0]?.id
+  return deck.cards.filter(c=>!c.habit||!deck.tasks.some(t=>t.id===c.taskId&&t.archived)).flatMap(c => c.events.slice(-1)).filter(e => e.day === day && ['done', 'later', 'skip'].includes(e.action)).sort((a, b) => (b.sequence??0)-(a.sequence??0) || b.at.localeCompare(a.at))[0]?.id
 }
 export function undo(deck: Deck, token: string, now = new Date()) {
   const card = deck.cards.find(c => c.events.at(-1)?.id === token)
   const last = card?.events.at(-1)
-  if (!card || !last || last.day !== dayKey(now) || !['done', 'later', 'skip'].includes(last.action)) return false
+  if (!card || (card.habit&&deck.tasks.some(t=>t.id===card.taskId&&t.archived)) || !last || last.day !== dayKey(now) || !['done', 'later', 'skip'].includes(last.action)) return false
   card.events.push({ id: uid(), sequence: nextSequence(deck), action: 'undo', target: token, at: now.toISOString(), day: dayKey(now), order: last.order }); return true
 }
 export function removeTask(deck: Deck, id: string, now = new Date()) {
@@ -130,7 +130,7 @@ export function removeTask(deck: Deck, id: string, now = new Date()) {
   const task = deck.tasks.find(t => t.id === id)
   if (!task) return
   task.archived = true
-  if (!isHabit(task)) deck.cards.filter(c => c.taskId === id && !terminal(c)).forEach(c => c.events.push({ id: uid(), sequence: nextSequence(deck), action: 'delete', at: now.toISOString(), day: dayKey(now), order: order(c) }))
+  deck.cards.filter(c => c.taskId === id && !terminal(c) && (!isHabit(task) || c.day >= dayKey(now))).forEach(c => c.events.push({ id: uid(), sequence: nextSequence(deck), action: 'delete', at: now.toISOString(), day: c.habit && c.day > dayKey(now) ? c.day : dayKey(now), order: order(c) }))
 }
 export function reorder(deck: Deck, ids: string[], now = new Date()) {
   roll(deck, dayKey(now))

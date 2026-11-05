@@ -79,3 +79,13 @@ The exact UI copy is: “Only the photo you select is added. It stays on this de
 - The additive version-1 schedule ledger preserves existing cards/events/images and unknown legacy historical decisions. No local data reset or new dependencies. Normal edits remain effective tomorrow, with the exact date displayed; backward clock changes preserve already-reconciled dates.
 - Native source/project/widget/tests remain unchanged. Xcode project/resource validator passed. Actual Safari, installed PWA, Xcode build and native widget execution remain unverified in this Linux/Chromium environment.
 - No manual deployment. A normal GitHub push can trigger the owner's existing Vercel auto-deployment.
+
+## Habit deletion and separate confirmation — 2026-11-05
+
+- Full Chromium regression run: **141 passed, 11 intentional viewport-specific skips (152 cases)**. Final production rebuild and 69 model tests passed after the summary/styling refinement; **10 targeted deletion browser cases passed** against that build, including completion denominators and an inspected 320 px confirmation screenshot.
+
+- Web deletion now closes unfinished linked occurrences from today onward (including Later/future cards) with a distinct deletion event, archives the habit, releases its slot, and preserves past and completed/skipped snapshots and photo references. Native core uses the same policy and existing App Group transaction/widget timeline refresh. Deleted records do not reduce completion percentages; Undo cannot resurrect a deleted habit's closed occurrence.
+- Confirmation is a separate top-layer modal; 320 px scrolled-form cases verify both buttons fit, Cancel/Escape preserve the draft and restore focus, and a failed write preserves storage with actionable retry. Native editor now uses a separate SwiftUI alert with the same message.
+- Production build passed. **69 web model/storage tests passed; 28 Swift core tests passed** using Swift 6.0.3 in a network-disabled Linux container. Xcode project/resource validation and whitespace checks passed.
+- Targeted deletion browser checks cover pending, Later, completed, skipped, shared queue/widget counts, reload/foreground rollover, and narrow dialog failure/cancel/retry. No image deletion or schema reset is introduced. Native SwiftUI compilation, actual Safari/PWA dialog behavior and WidgetKit runtime updates still require Xcode and an iPhone/simulator; Chromium emulation does not verify them.
+- [Behavior and diagnosis](../../docs/habit-deletion.md). No manual deployment; a GitHub push may trigger existing Vercel automation.
