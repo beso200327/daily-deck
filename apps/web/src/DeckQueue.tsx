@@ -4,7 +4,7 @@ import type {Card} from './deck'
 import type {Exit} from './TaskDeck'
 import {LATER_RETURN_MS,QUEUE_SETTLE_MS,REDUCED_PHASE_MS} from './motion'
 // Reading order settles after motion. Stable occurrence nodes travel above the unchanged scroll container.
-export function DeckQueue({cards,edit,disabled,exit}:{cards:Card[];edit:(id:string)=>void;disabled:boolean;exit:Exit|null}){
+export function DeckQueue({cards,edit,disabled,exit,revealId}:{revealId?:string|null;cards:Card[];edit:(id:string)=>void;disabled:boolean;exit:Exit|null}){
  const [rows,setRows]=useState(cards),[settled,setSettled]=useState(true),[settling,setSettling]=useState(false)
  const [metrics,setMetrics]=useState({height:60,gap:8})
  const port=useRef<HTMLDivElement>(null),timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined),wasMoving=useRef(false)
@@ -25,6 +25,7 @@ export function DeckQueue({cards,edit,disabled,exit}:{cards:Card[];edit:(id:stri
   const measure=()=>{const height=first.offsetHeight,gap=parseFloat(getComputedStyle(el).getPropertyValue('--queue-gap'))||8;if(height)setMetrics(old=>old.height===height&&old.gap===gap?old:{height,gap})}
   measure();const observer=new ResizeObserver(measure);observer.observe(first);observer.observe(el);return()=>observer.disconnect()
  },[rows.length])
+ useLayoutEffect(()=>{if(revealId&&cards[0]?.id===revealId)port.current?.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'instant':'smooth'})},[revealId])
  useEffect(()=>()=>clearTimeout(timer.current),[])
  const step=metrics.height+metrics.gap,contentHeight=Math.max(0,cards.length*step-metrics.gap),extent=Math.max(0,rows.length*step-metrics.gap)
  return <section className="up-next" aria-label="In your deck"><div className="section-label"><span id="queue-title">IN YOUR DECK</span><span className="small-count" data-testid="queue-count">{cards.length}</span></div>{rows.length>0?<div ref={port} className="queue-scroll" role="region" aria-labelledby="queue-title" tabIndex={0} data-testid="queue-scroll" style={{'--queue-content':`${contentHeight}px`,'--queue-measured-height':`${metrics.height}px`} as React.CSSProperties} onKeyDown={e=>{if(e.target!==e.currentTarget)return;const p=e.currentTarget,delta=e.key==='ArrowDown'?step:e.key==='ArrowUp'?-step:e.key==='PageDown'?p.clientHeight:e.key==='PageUp'?-p.clientHeight:null;if(delta!==null){e.preventDefault();p.scrollTop+=delta}else if(e.key==='Home'||e.key==='End'){e.preventDefault();p.scrollTop=e.key==='Home'?0:p.scrollHeight}}}><ol className="queue-list" style={{height:Math.max(contentHeight,settled?0:extent)}}>{rows.map((old,oldIndex)=>{

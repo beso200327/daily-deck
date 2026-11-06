@@ -89,3 +89,15 @@ The exact UI copy is: “Only the photo you select is added. It stays on this de
 - Production build passed. **69 web model/storage tests passed; 28 Swift core tests passed** using Swift 6.0.3 in a network-disabled Linux container. Xcode project/resource validation and whitespace checks passed.
 - Targeted deletion browser checks cover pending, Later, completed, skipped, shared queue/widget counts, reload/foreground rollover, and narrow dialog failure/cancel/retry. No image deletion or schema reset is introduced. Native SwiftUI compilation, actual Safari/PWA dialog behavior and WidgetKit runtime updates still require Xcode and an iPhone/simulator; Chromium emulation does not verify them.
 - [Behavior and diagnosis](../../docs/habit-deletion.md). No manual deployment; a GitHub push may trigger existing Vercel automation.
+
+## Creation feedback and top-of-deck ordering — 2026-11-06
+
+- Final complete Chromium run (`npm run test:e2e -- --workers=2`): **151 passed, 11 intentional viewport-specific skips (162 cases)**.
+
+- Production TypeScript/Vite build passed; **71 model/storage tests passed**. New creation prepends only the fresh occurrence using persisted order, preserves existing records and relative order, and leaves edits in place. Initial starter order is preserved; no migration/reset is needed.
+- Creation closes only after a successful transaction, announces politely without focus transfer, reveals the card with a brief entrance/fading highlight, updates queue/counts/preview from the same snapshot, and creates no save toast. Other-day habits appear in Habits. Reduced motion suppresses entrance movement and uses instant scrolling.
+- Browser regressions cover empty/existing decks, error/retry with preserved fields, held-lock Saving state, rapid clicks with one resulting task, desktop sidebar-only scrolling, mobile reveal after background scroll restoration, weekday habits, photo creation/reload and free-plan gates. Existing toast lifetime tests now use edits as their temporary notice source, since creation intentionally has no toast. PWA update/reload checks expect the newly saved card first.
+- An initial mobile reveal aligned to an animated card and clipped its top by the entrance offset. The final implementation targets the stable deck section. Old assertions that moved a freshly created bottom card upward were updated to assert it already occupies the first position.
+- Test maintenance: timezone travel now seeds on an explicit fixed date instead of mixing the real date with November 5 travel; preview over-limit editing now saves the newest one-time task rather than assuming a habit remains first.
+- Native sources/storage/widget are unchanged; project/resource validation and whitespace checks passed. Browser checks use Chromium desktop and iPhone-sized touch emulation. Actual Safari, installed PWA scrolling and VoiceOver announcements remain device-verification items.
+- [Implementation details](../../docs/creation-feedback.md). No manual deployment; a push may trigger existing owner-managed Vercel automation.

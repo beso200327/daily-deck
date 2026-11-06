@@ -108,6 +108,10 @@ export function saveTask(deck: Deck, task: Task, today = dayKey()) {
     }
   } else {const fresh={...task,created:today,through:undefined,title:task.title.trim(),scheduleVersions:undefined as ScheduleVersion[]|undefined};if(isHabit(fresh))fresh.scheduleVersions=[scheduleVersion(fresh,today)];deck.tasks.push(fresh)}
   roll(deck, today)
+  if(!existing){
+    const card=pending(deck,today).find(c=>c.taskId===task.id)
+    if(card)card.initialOrder=Math.min(0,...pending(deck,today).filter(c=>c.id!==card.id).map(order))-1
+  }
 }
 function nextSequence(deck:Deck){return Math.max(0,...deck.cards.flatMap(c=>c.events.map(e=>e.sequence??0)))+1}
 export function act(deck: Deck, id: string, action: 'done' | 'later' | 'skip', now = new Date()) {
@@ -143,6 +147,7 @@ export function seed(today = dayKey()): Deck {
   for (const [title, notes, minutes] of [['Walk for 20 minutes', 'A little movement. A better day.', 20], ['Read 10 pages', 'A few pages, a new perspective.', 15], ['Drink a glass of water', 'Pause. Take a sip. Begin again.', 2]] as const) {
     saveTask(deck, { id: uid(), title, notes, minutes, icon: inferredIcon({title, notes}), kind: 'habit', weekdays: [0, 1, 2, 3, 4, 5, 6], created: today, archived: false }, today)
   }
+  deck.cards.forEach((card,index)=>{card.initialOrder=index+1})
   return deck
 }
 export type Period = 'day' | 'week' | 'month'
