@@ -147,3 +147,9 @@ The creation footer shows only the selected type's free allowance, with contextu
 Mobile Today fits the available viewport: compact date/header and +, real stacked cards with edit, labeled Later/Done, and bottom navigation. Open **More actions** for Skip today, Reorder deck, Manage one-time tasks, Undo, task details, and Help & settings. Long content has a full task-details view; creation/editing forms scroll inside their dialogs.
 
 Today totals and the completion bar live in the existing Progress summary. Widget preview, installation instructions, plan usage and local-data controls are in Help & settings. Desktop keeps its compact sidebar and overview. Mobile height adapts to visual viewport/browser chrome and safe areas; unusually short screens, page zoom or enlarged text allow natural scrolling so controls stay reachable. Zoom remains enabled. See [layout validation and evidence](../../docs/mobile-today.md).
+
+## Deadlines and reminder availability
+
+Use **Complete by** or **No deadline** in task/habit forms. Old estimates do not become times. Cards and lists show the deadline in your local time format; overdue stays pending. Deadline/reminder edits apply to unfinished occurrences from today onward, preserving past/finished snapshots and order. One-time deadlines remain on their original scheduled date.
+
+**Web/PWA reminders are not scheduled.** The 30-minute checkbox saves a preference only; there is no configured Web Push backend. No notification permission is requested, and a browser timer is not used to pretend closed-app delivery works. The native app includes local-notification scheduling source, but web/native data do not sync. See [platform setup, policies and verification limits](../../docs/deadlines-reminders.md).

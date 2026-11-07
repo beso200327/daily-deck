@@ -1,16 +1,42 @@
 import SwiftUI
 import WidgetKit
 import Combine
+import UIKit
+import UserNotifications
 import DailyDeckCore
 
 @MainActor final class DeckModel: ObservableObject {
     @Published var state = DeckState()
     @Published var error: String?
     @Published var undoID: UUID?
+    @Published var reminderStatus = "Deadline saved. Reminder scheduling has not completed."
+    private var reminderGeneration = 0
+    @Published var reminderAllowed: Bool? = nil
+    @Published var scheduledReminders = Set<String>()
+    func requestReminders() async -> String {
+        do { let allowed = try await NotificationScheduler.requestPermission(); reminderStatus = allowed ? "Permission granted. Save to schedule the reminder." : "Notifications denied. You can still save the deadline; enable notifications in iPhone Settings to receive reminders." }
+        catch { reminderStatus = "Permission could not be requested. Your deadline can still be saved." }
+        return reminderStatus
+    }
+    func reminderMessage(_ card: Occurrence) -> String {
+        guard card.remind == true, let date = card.deadlineDate() else { return "" }
+        if date.addingTimeInterval(-1800) <= Date() { return "No advance reminder remains for this occurrence." }
+        let id = ReminderJob.identifier(entryID: card.entryID, day: card.day)
+        if scheduledReminders.contains(id) { return "Reminder scheduled for " + date.addingTimeInterval(-1800).formatted(date: .omitted, time: .shortened) }
+        if reminderAllowed == true { return "Deadline saved. This reminder is not queued: the upcoming queue may be full, or this deadline was already reminded." }
+        return reminderStatus
+    }
     func update(_ body: (inout DeckState) -> Void = { _ in }) {
         do {
             let previous = state
             state = try DeckStore.shared().transaction { state in body(&state) }.0
+            NotificationScheduler.cancelChanges(before: previous, after: state)
+            reminderGeneration += 1; let generation = reminderGeneration
+            scheduledReminders = []; reminderAllowed = nil; reminderStatus = "Deadline saved. Checking reminder scheduling…"
+            Task {
+                do { let report = try await NotificationScheduler.shared.reconcile(store: DeckStore.shared()); guard generation == reminderGeneration else { return }; scheduledReminders = report.scheduled; reminderAllowed = report.allowed; reminderStatus = report.message }
+                catch { guard generation == reminderGeneration else { return }; scheduledReminders = []; reminderStatus = "Deadline saved. Reminder scheduling failed; reopen Daily Deck to retry. " + error.localizedDescription }
+            }
             error = nil
             undoID = state.latestUndoableEvent(on: today)
             if previous != state { WidgetCenter.shared.reloadAllTimelines() }
@@ -40,12 +66,13 @@ extension Color {
     static let muted = Color(red: 0.38, green: 0.36, blue: 0.32)
 }
 @main struct DailyDeckApp: App {
+    private let presenter = ReminderPresenter()
     @StateObject private var model = DeckModel()
     @Environment(\.scenePhase) private var phase
     var body: some Scene {
         WindowGroup {
             RootView().environmentObject(model).tint(.ink).preferredColorScheme(.light).environment(\.locale, Locale(identifier: "en_US"))
-                .onAppear { model.update() }
+                .onAppear { UNUserNotificationCenter.current().delegate = presenter; model.update() }
                 .onChange(of: phase) { _, phase in if phase == .active { model.update() } }
         }
     }
@@ -63,6 +90,7 @@ struct RootView: View {
         }
         .onReceive(tick) { _ in if phase == .active { model.update() } }
         .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in model.update() }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in model.update() }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in model.update() }
         .onOpenURL { url in if url.scheme == "dailydeck" && url.host == "today" { tab = 0; model.update() } }
         .alert("Deck needs attention", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
@@ -94,7 +122,8 @@ struct TodayView: View {
                                 CalmArtwork().frame(height: 160).accessibilityHidden(true)
                                 Text(card.title).font(.system(.largeTitle, design: .rounded).weight(.semibold)).fixedSize(horizontal: false, vertical: true)
                                 if !card.notes.isEmpty { Text(card.notes).foregroundStyle(Color.muted).font(.title3) }
-                                if let minutes = card.minutes { Label("\(minutes) min", systemImage: "clock").font(.subheadline).padding(10).background(Color.ink.opacity(0.06), in: Capsule()) }
+                                if let deadline = card.deadline { Label(deadline.label + (card.isOverdue(now: Date()) ? " · Overdue" : ""), systemImage: "clock").font(.subheadline).padding(10).background(Color.ink.opacity(0.06), in: Capsule()) }
+                                if card.remind == true { Text(model.reminderMessage(card)).font(.caption).foregroundStyle(Color.muted) }
                                 HStack {
                                     Button("Edit", systemImage: "pencil") { editor = model.state.entries.first { $0.id == card.entryID } }
                                     Spacer()
@@ -149,5 +178,15 @@ struct CalmArtwork: View {
             Image(systemName: "leaf.fill").font(.system(size: 46)).rotationEffect(.degrees(-25)).foregroundStyle(Color(red: 0.55, green: 0.63, blue: 0.29)).offset(x: -95, y: 45)
             Image(systemName: "leaf").font(.system(size: 42)).foregroundStyle(Color(red: 0.55, green: 0.63, blue: 0.29)).offset(x: 95, y: 40)
         }.frame(maxWidth: .infinity)
+    }
+}
+
+final class ReminderPresenter: NSObject, UNUserNotificationCenterDelegate {
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        do {
+            let state = try DeckStore.shared().load()
+            let valid = state.reminderJobs(now: Date(), includeElapsed: true).contains { abs($0.fireAt.timeIntervalSinceNow) < 60 && $0.identifier == notification.request.identifier && $0.fingerprint == notification.request.content.userInfo["fingerprint"] as? String }
+            completionHandler(valid ? [.banner, .sound] : [])
+        } catch { completionHandler([]) }
     }
 }

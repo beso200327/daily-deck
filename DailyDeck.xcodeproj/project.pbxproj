@@ -410,11 +410,22 @@
 			isa = PBXBuildFile;
 			fileRef = FC3B8431B41DAB10681809A4;
 		};
+		9D207E24A3066439CEACA92E = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = Tests/ReminderTests.swift;
+			sourceTree = "<group>";
+		};
+		6B4886C20739EB6A0349D38F = {
+			isa = PBXBuildFile;
+			fileRef = 9D207E24A3066439CEACA92E;
+		};
 		D94ECC230D8D49CD8414204F = {
 			isa = PBXGroup;
 			name = Tests;
 			children = (
 				FC3B8431B41DAB10681809A4,
+				9D207E24A3066439CEACA92E,
 			);
 			sourceTree = "<group>";
 		};
@@ -451,6 +462,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CD766B86EB19702290146371,
+				6B4886C20739EB6A0349D38F,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

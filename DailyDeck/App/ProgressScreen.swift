@@ -37,6 +37,7 @@ struct ProgressScreen: View {
                                 Image(systemName: symbol(card.outcome(on: day, today: model.today))).foregroundStyle(Color.ink).font(.title2).accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 7) {
                                     Text(card.title).font(.headline)
+                                    if let deadline = card.deadline { Text(deadline.label + (card.isOverdue(now: Date()) ? " · Overdue" : "")).font(.caption).foregroundStyle(Color.muted) }
                                     Text(card.outcome(on: day, today: model.today).rawValue.capitalized).font(.subheadline).foregroundStyle(Color.muted)
                                     if let time = card.completedAt(on: day) { Text("Completed at \(time.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(Locale(identifier: "en_US"))))").font(.caption).foregroundStyle(Color.muted) }
                                 }
@@ -49,7 +50,7 @@ struct ProgressScreen: View {
                 .sheet(item: $detail) { card in
                     NavigationStack {
                         List {
-                            Section { Text(card.title).font(.title2.bold()); Text("Scheduled \(card.day.date().formatted(Date.FormatStyle(date: .long, time: .omitted).locale(Locale(identifier: "en_US"))))"); if !card.notes.isEmpty { Text(card.notes) } }
+                            Section { Text(card.title).font(.title2.bold()); Text("Scheduled \(card.day.date().formatted(Date.FormatStyle(date: .long, time: .omitted).locale(Locale(identifier: "en_US"))))"); if !card.notes.isEmpty { Text(card.notes) }; if let time = card.deadline { Text(time.label) } }
                             Section("Action history through selected day") {
                                 let events = card.events.filter { $0.day <= day }
                                 if events.isEmpty { Text(day < model.today ? "No action recorded. Missed." : "Waiting in your deck.") }

@@ -8,11 +8,20 @@ struct EntryEditor: View {
     let habit: Bool
     @State private var title = ""
     @State private var notes = ""
-    @State private var minutes = ""
+    @State private var hasDeadline = false
+    @State private var deadline = Date()
+    @State private var remind = false
+    @State private var permissionNotice = ""
+    @State private var permissionPurpose = false
     @State private var days = Set(1...7)
     @State private var confirmDelete = false
+    private var deadlineDay: Day {
+        if !habit { return entry?.created ?? model.today }
+        if let entry, model.pending.contains(where: { $0.entryID == entry.id }) { return model.today }
+        return (0..<7).map { model.today.adding($0) }.first { days.contains(Calendar.current.component(.weekday, from: $0.date())) } ?? model.today
+    }
     private var valid: Bool {
-        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && (!habit || !days.isEmpty) && (minutes.isEmpty || (Int(minutes).map { $0 > 0 && $0 <= 1440 } ?? false))
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && (!habit || !days.isEmpty)
     }
     var body: some View {
         NavigationStack {
@@ -20,7 +29,16 @@ struct EntryEditor: View {
                 Section("One small thing") {
                     TextField("Title", text: $title).accessibilityLabel("Title")
                     TextField("Notes (optional)", text: $notes, axis: .vertical).lineLimit(3...6)
-                    TextField("Minutes (optional, 1–1440)", text: $minutes).keyboardType(.numberPad)
+                    Toggle("Complete by", isOn: $hasDeadline)
+                    if hasDeadline {
+                        DatePicker("Complete by", selection: $deadline, displayedComponents: .hourAndMinute).environment(\.locale, Locale.current)
+                        Button("No deadline") { hasDeadline = false; remind = false }
+                        Text("Reminders notify you 30 minutes before this local deadline. Permission is requested only if you enable them.").font(.caption)
+                        Toggle("Remind me 30 minutes before", isOn: Binding(get: { remind }, set: { if $0 { permissionPurpose = true } else { remind = false } }))
+                        Text(permissionNotice.isEmpty ? "Save to store this deadline. A reminder is scheduled only after OS acceptance." : permissionNotice).font(.caption).foregroundStyle(Color.muted)
+                        let c = Calendar.current.dateComponents([.hour, .minute], from: deadline)
+                        if let time = LocalTime(hour: c.hour ?? 0, minute: c.minute ?? 0), let at = time.date(on: deadlineDay), at.addingTimeInterval(-1800) <= Date() { Text("No advance reminder remains for this occurrence. The deadline can still be saved.").font(.caption) }
+                    } else { Text("No deadline").foregroundStyle(Color.muted) }
                 }
                 if habit {
                     Section("Repeat on") {
@@ -30,7 +48,7 @@ struct EntryEditor: View {
                         }
                         if days.isEmpty { Text("Choose at least one weekday.").foregroundStyle(.red) }
                     }
-                    if entry != nil { Section { Text("Changes apply from tomorrow. Today's card and past records stay as they were.").foregroundStyle(Color.muted) } }
+                    if entry != nil { Section { Text("Schedule and text changes apply tomorrow. Deadline/reminder changes update unfinished cards from today onward; past and finished records keep their snapshots.").foregroundStyle(Color.muted) } }
                 }
                 if entry != nil {
                     Section { Button("Delete \(habit ? "habit" : "task")", role: .destructive) { confirmDelete = true } }
@@ -44,7 +62,8 @@ struct EntryEditor: View {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                     ToolbarItem(placement: .confirmationAction) { Button("Save") {
                         var result = entry ?? Entry(title: "", created: model.today)
-                        result.title = title.trimmingCharacters(in: .whitespacesAndNewlines); result.notes = notes; result.minutes = Int(minutes); result.weekdays = habit ? days : []
+                        result.title = title.trimmingCharacters(in: .whitespacesAndNewlines); result.notes = notes; let c = Calendar.current.dateComponents([.hour, .minute], from: deadline)
+                        result.deadline = hasDeadline ? LocalTime(hour: c.hour ?? 0, minute: c.minute ?? 0) : nil; result.remind = hasDeadline && remind; result.weekdays = habit ? days : []
                         model.update { $0.save(result, now: Date()) }
                         if model.error == nil { dismiss() }
                     }.disabled(!valid) }
@@ -55,8 +74,12 @@ struct EntryEditor: View {
                     }
                     Button("Cancel", role: .cancel) {}
                 } message: { Text(habit ? "This removes the habit and its unfinished tasks from today and future days. Your history stays." : "This task will leave the deck. Its history will remain, marked deleted.") }
+                .confirmationDialog("Enable reminders?", isPresented: $permissionPurpose, titleVisibility: .visible) {
+                    Button("Continue") { remind = true; Task { permissionNotice = await model.requestReminders() } }
+                    Button("Cancel", role: .cancel) {}
+                } message: { Text("Daily Deck can send a local notification 30 minutes before a deadline, even while closed. Saving is allowed if notifications are denied. iOS Focus and notification settings control delivery.") }
                 .onAppear {
-                    if let entry { title = entry.title; notes = entry.notes; minutes = entry.minutes.map(String.init) ?? ""; days = entry.weekdays }
+                    if let entry { title = entry.title; notes = entry.notes; days = entry.weekdays; hasDeadline = entry.deadline != nil; deadline = entry.deadline?.date(on: model.today) ?? Date(); remind = entry.remind ?? false }
                 }
         }
     }
@@ -78,14 +101,14 @@ struct HabitsView: View {
                         Button { editor = entry } label: {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(entry.title).font(.headline)
-                                Text(schedule(entry)).font(.subheadline).foregroundStyle(Color.muted)
+                                Text(schedule(entry) + (entry.deadline.map { " · " + $0.label } ?? "")).font(.subheadline).foregroundStyle(Color.muted)
                             }.padding(.vertical, 10)
                         }
                     }
                 }
                 Section("One-time tasks") {
                     ForEach(model.state.entries.filter { !$0.isHabit && !$0.archived }) { entry in
-                        Button { editor = entry } label: { HStack { Text(entry.title); Spacer(); Image(systemName: "pencil") }.padding(.vertical, 8) }
+                        Button { editor = entry } label: { HStack { VStack(alignment: .leading) { Text(entry.title); if let time = entry.deadline { Text(time.label).font(.caption) } }; Spacer(); Image(systemName: "pencil") }.padding(.vertical, 8) }
                     }
                 }
                 Section { Text("Your starter routine is yours to edit or delete. There are no streak penalties; each day is a fresh deck.").foregroundStyle(Color.muted) }
@@ -107,7 +130,7 @@ struct ReorderScreen: View {
         NavigationStack {
             List {
                 Text("Drag the handles to choose what comes next.").foregroundStyle(Color.muted)
-                ForEach(model.pending) { card in Text(card.title).padding(.vertical, 10) }
+                ForEach(model.pending) { card in VStack(alignment: .leading) { Text(card.title); if let time = card.deadline { Text(time.label).font(.caption) } }.padding(.vertical, 10) }
                     .onMove { source, destination in
                         var ids = model.pending.map(\.id)
                         ids.move(fromOffsets: source, toOffset: destination)
@@ -128,6 +151,7 @@ struct WidgetHelp: View {
                     Text("1. Open Daily Deck once to prepare your deck.\n\n2. Touch and hold an empty area on your iPhone Home Screen.\n\n3. Tap Edit → Add Widget (or the + button), then search for Daily Deck.\n\n4. Choose the medium widget and tap Add Widget.")
                     Text("Tap Done to complete the visible card, or Later to move it to the end. These buttons require iOS 17 or later. Widgets support taps, not swipe gestures.")
                     Text("The app and widget share your local deck. iOS controls widget refresh timing; a briefly stale card cannot complete a different task. Open the app if the widget needs to catch up.").foregroundStyle(Color.muted)
+                    Text("Deadlines are local times. Enable reminders in an editor to request notification permission. Up to 60 upcoming reminders across 30 days are queued; reopen Daily Deck to extend them. Pending reminders are recalculated after timezone/clock changes when the app is active. While closed, they use the last planned timezone. iOS Focus and notification settings control delivery.").foregroundStyle(Color.muted)
                     Text("At local midnight, scheduled habits get new cards. Past unfinished habits stay in history; unfinished one-time tasks stay in your deck. Dates use your device's local calendar and timezone. Existing dated records do not move when you travel.").foregroundStyle(Color.muted)
                 }.padding(24)
             }.background(Color.ivory).navigationTitle("Home Screen widget").toolbar { Button("Done") { dismiss() } }

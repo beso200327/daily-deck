@@ -48,9 +48,13 @@ struct ActOnCard: AppIntent {
         self.occurrenceID = card.id.uuidString; self.revision = card.events.last?.id.uuidString ?? "initial"; self.day = day; self.complete = complete
     }
     func perform() async throws -> some IntentResult {
-        try DeckStore.shared().transaction { state in
-            state.widgetAction(complete ? .done : .later, occurrenceID: occurrenceID, revision: revision, renderedDay: day, now: Date())
+        var before = DeckState()
+        let updated = try DeckStore.shared().transaction { state in
+            before = state
+            return state.widgetAction(complete ? .done : .later, occurrenceID: occurrenceID, revision: revision, renderedDay: day, now: Date())
         }
+        NotificationScheduler.cancelChanges(before: before, after: updated.0)
+        _ = try? await NotificationScheduler.shared.reconcile(store: DeckStore.shared())
         WidgetCenter.shared.reloadAllTimelines()
         return .result()
     }
@@ -64,6 +68,7 @@ struct DeckWidgetView: View {
             Text(entry.card?.title ?? (entry.error ? "Open Daily Deck" : "Room to breathe.")).font(.headline).lineLimit(2)
             Text(entry.error ? "Your deck needs attention." : "\(entry.count) remaining").font(.caption).foregroundStyle(ink.opacity(0.8))
             if let card = entry.card {
+                if let time = card.deadline { Text(time.label + (card.isOverdue(now: Date()) ? " · Overdue" : "")).font(.caption) }
                 HStack(spacing: 10) {
                     Button(intent: ActOnCard(card: card, day: entry.day, complete: false)) { Label("Later", systemImage: "arrow.uturn.backward").font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, minHeight: 44).background(Color(red: 1, green: 0.82, blue: 0.71), in: RoundedRectangle(cornerRadius: 14)) }.accessibilityLabel("Later, move this task to the end of the deck")
                     Button(intent: ActOnCard(card: card, day: entry.day, complete: true)) { Label("Done", systemImage: "checkmark").font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, minHeight: 44).background(Color(red: 0.80, green: 0.91, blue: 0.32), in: RoundedRectangle(cornerRadius: 14)) }.accessibilityLabel("Done, complete this task")

@@ -20,15 +20,18 @@ public struct Entry: Codable, Identifiable, Equatable {
     public var id = UUID()
     public var title: String
     public var notes: String
-    public var minutes: Int?
+    public var minutes: Int? // Legacy estimate; never interpreted as a deadline.
+    public var deadline: LocalTime?
+    public var remind: Bool?
+    public var deadlineVersions: [DeadlineRevision]?
     /// Empty means one-time; Calendar weekday values 1=Sunday ... 7=Saturday.
     public var weekdays: Set<Int>
     public var created: Day
     public var archived = false
     public var generatedThrough: Day?
     public var isHabit: Bool { !weekdays.isEmpty }
-    public init(title: String, notes: String = "", minutes: Int? = nil, weekdays: Set<Int> = [], created: Day) {
-        self.title = title; self.notes = notes; self.minutes = minutes; self.weekdays = weekdays; self.created = created
+    public init(title: String, notes: String = "", minutes: Int? = nil, weekdays: Set<Int> = [], created: Day, deadline: LocalTime? = nil, remind: Bool = false) {
+        self.title = title; self.notes = notes; self.minutes = minutes; self.weekdays = weekdays; self.created = created; self.deadline = deadline; self.remind = deadline != nil && remind
     }
 }
 public enum Action: String, Codable { case done, later, skip, delete, undo, reorder }
@@ -51,6 +54,8 @@ public struct Occurrence: Codable, Identifiable, Equatable {
     public var habit: Bool
     public var initialOrder: Int
     public var events: [DeckEvent] = []
+    public var deadline: LocalTime? = nil
+    public var remind: Bool? = nil
     public func activeEvents(through day: Day? = nil) -> [DeckEvent] {
         let eligible = events.filter { day == nil || $0.day <= day! }
         let undone = Set(eligible.filter { $0.action == .undo }.compactMap(\.target))
@@ -92,7 +97,7 @@ public struct DeckState: Codable, Equatable {
             while day <= today {
                 let scheduled = entry.isHabit ? entry.weekdays.contains(calendar.component(.weekday, from: day.date(calendar: calendar))) : day == entry.created
                 if scheduled && !occurrences.contains(where: { $0.entryID == entry.id && $0.day == day }) {
-                    occurrences.append(Occurrence(entryID: entry.id, day: day, title: entry.title, notes: entry.notes, minutes: entry.minutes, habit: entry.isHabit, initialOrder: (occurrences.map(\.order).max() ?? 0) + 1))
+                    occurrences.append(Occurrence(entryID: entry.id, day: day, title: entry.title, notes: entry.notes, minutes: entry.minutes, habit: entry.isHabit, initialOrder: (occurrences.map(\.order).max() ?? 0) + 1, deadline: entry.deadline(on: day), remind: entry.reminderEnabled(on: day)))
                 }
                 day = day.adding(1, calendar: calendar)
             }
@@ -142,7 +147,16 @@ public struct DeckState: Codable, Equatable {
         roll(now: now, calendar: calendar)
         if let i = entries.firstIndex(where: { $0.id == entry.id }) {
             // Today's occurrence is a snapshot. Habit changes affect future days only.
+            let deadlineChanged = entries[i].deadline != entry.deadline || (entries[i].remind ?? false) != (entry.remind ?? false)
             var updated = entry
+            updated.deadlineVersions = entries[i].deadlineVersions
+            if deadlineChanged {
+                let baseline = updated.deadlineVersions ?? [DeadlineRevision(effectiveFrom: entry.created, time: nil, remind: false)]
+                updated.deadlineVersions = baseline.filter { $0.effectiveFrom < Day(now, calendar: calendar) } + [DeadlineRevision(effectiveFrom: Day(now, calendar: calendar), time: entry.deadline, remind: entry.deadline != nil && (entry.remind ?? false))]
+                for j in occurrences.indices where occurrences[j].entryID == entry.id && !occurrences[j].terminal && (!entry.isHabit || occurrences[j].day >= Day(now, calendar: calendar)) {
+                    occurrences[j].deadline = entry.deadline; occurrences[j].remind = entry.deadline != nil && (entry.remind ?? false)
+                }
+            }
             updated.generatedThrough = entries[i].generatedThrough
             entries[i] = updated
             if !entry.isHabit {
@@ -150,7 +164,11 @@ public struct DeckState: Codable, Equatable {
                     occurrences[j].title = entry.title; occurrences[j].notes = entry.notes; occurrences[j].minutes = entry.minutes
                 }
             }
-        } else { entries.append(entry) }
+        } else {
+            var fresh = entry
+            if entry.deadline != nil { fresh.deadlineVersions = [DeadlineRevision(effectiveFrom: entry.created, time: entry.deadline, remind: entry.remind ?? false)] }
+            entries.append(fresh)
+        }
         roll(now: now, calendar: calendar)
     }
     public mutating func delete(_ id: UUID, now: Date, calendar: Calendar = .current) {

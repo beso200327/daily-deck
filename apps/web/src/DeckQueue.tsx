@@ -1,4 +1,5 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react'
+import {DeadlineLabel} from './DeadlineLabel'
 import {Pencil} from 'lucide-react'
 import type {Card} from './deck'
 import type {Exit} from './TaskDeck'
@@ -34,6 +35,6 @@ export function DeckQueue({cards,edit,disabled,exit,revealId}:{revealId?:string|
   const raised=postponing&&!settling&&!reduced,lift=raised&&moving.phase==='out'?-3:0
   const visualIndex=moving?.phase==='out'?oldIndex:Math.max(0,leaving?oldIndex:at)
   const duration=postponing?(stage==='lift'?125:stage==='settle'?settleDuration:travelDuration):moving?.phase==='return'?travelDuration:280
-  return <li key={card.id} data-occurrence-id={card.id} data-queue-index={at} data-queue-stage={stage} aria-hidden={leaving} inert={leaving} className={`queue-card ${at===0?'is-current':''} ${leaving?'is-leaving':''} ${postponing?'is-postponing':''} ${raised?'is-raised':''}`} style={{transform:`translate(${leaving?18:0}px,${visualIndex*step+lift}px) scale(${raised?1.015:1})`,zIndex:postponing?30:1,transitionDuration:`${reduced?50:duration}ms`}}><span className={`queue-dot ${at===0?'active':''}`} aria-hidden="true"/><div className="queue-copy"><strong title={card.title}>{card.title}</strong><small>{card.habit?'Recurring habit':'One-time task'}{at===0&&<span className="queue-current"> · Up next</span>}</small></div><button type="button" className="queue-edit" aria-label={`Edit ${card.title}`} disabled={disabled||leaving} onClick={()=>edit(card.taskId)}><Pencil size={14} aria-hidden="true"/></button></li>
+  return <li key={card.id} data-occurrence-id={card.id} data-queue-index={at} data-queue-stage={stage} aria-hidden={leaving} inert={leaving} className={`queue-card ${at===0?'is-current':''} ${leaving?'is-leaving':''} ${postponing?'is-postponing':''} ${raised?'is-raised':''}`} style={{transform:`translate(${leaving?18:0}px,${visualIndex*step+lift}px) scale(${raised?1.015:1})`,zIndex:postponing?30:1,transitionDuration:`${reduced?50:duration}ms`}}><span className={`queue-dot ${at===0?'active':''}`} aria-hidden="true"/><div className="queue-copy"><strong title={card.title}>{card.title}</strong><small>{card.habit?'Recurring habit':'One-time task'} <DeadlineLabel card={card}/>{at===0&&<span className="queue-current"> · Up next</span>}</small></div><button type="button" className="queue-edit" aria-label={`Edit ${card.title}`} disabled={disabled||leaving} onClick={()=>edit(card.taskId)}><Pencil size={14} aria-hidden="true"/></button></li>
  })}</ol></div>:<p className="muted">A clear deck. A quieter mind.</p>}</section>
 }

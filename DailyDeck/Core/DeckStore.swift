@@ -6,7 +6,7 @@ import Glibc
 #endif
 
 /// Both processes transact under the same advisory lock; reads never overwrite a newer widget action.
-public final class DeckStore {
+public final class DeckStore: Sendable {
     public static let group = "group.com.dailydeck.shared"
     public let directory: URL
     public init(directory: URL) { self.directory = directory }

@@ -1,0 +1,8 @@
+import type {Card,Day} from './deck'
+export const validTime=(value:unknown):value is string=>typeof value==='string'&&/^([01]\d|2[0-3]):[0-5]\d$/.test(value)
+// Local calendar construction: gap times advance by the DST gap; folds use the first occurrence.
+export function deadlineDate(day:Day,time?:string){if(!validTime(time))return;const [y,m,d]=day.split('-').map(Number),[hour,minute]=time.split(':').map(Number);const date=new Date(y,m-1,d,hour,minute,0,0);if(date.getFullYear()!==y||date.getMonth()!==m-1||date.getDate()!==d)return;return date}
+export function byTime(time?:string){const date=deadlineDate('2026-01-15',time);return date?`By ${new Intl.DateTimeFormat(undefined,{hour:'numeric',minute:'2-digit'}).format(date)}`:''}
+export function reminderTime(card:Pick<Card,'day'|'deadline'>){const date=deadlineDate(card.day,card.deadline);return date?new Date(date.getTime()-30*60_000):undefined}
+export function overdue(card:Card,now=new Date()){const date=deadlineDate(card.day,card.deadline);const undone=new Set(card.events.filter(e=>e.action==='undo').map(e=>e.target)),last=card.events.filter(e=>e.action!=='undo'&&e.action!=='reorder'&&!undone.has(e.id)).at(-1);return !!date&&date<now&&!['done','skip','delete'].includes(last?.action??'')}
+export function webReminderStatus(card:Pick<Card,'day'|'deadline'|'remind'>,now=new Date(),saved=true){if(!card.deadline||!card.remind)return'';const at=reminderTime(card),subject=saved?'Deadline saved':'Deadline will be saved';return !at||at<=now?`No advance reminder remains for this occurrence. ${subject}; no reminder is scheduled.`:`${subject}. ${saved?'Reminder preference saved only':'Only the reminder preference will be saved'}: background web reminders are unavailable and no notification is scheduled.`}

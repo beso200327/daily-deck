@@ -5,13 +5,14 @@ import { TaskVisual } from './visuals'
 import { preparePhoto, getPhotoEdit, putEditedPhoto, deletePhoto, type EditedPhoto, type PhotoEdit } from './photos'
 import { ImageEditor } from './ImageEditor'
 import * as D from './deck'
+import {webReminderStatus} from './deadlines'
 import {FREE} from './limits'
 import type { Task, Visual } from './deck'
 const weekNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-export function Editor({task,habit,exists,close,save,remove,error,busy,usage,unlimited,onUpgrade}: {task: Task; habit: boolean; exists: boolean; close: () => void; save: (task: Task) => Promise<boolean>; remove: () => Promise<void>; error: string; busy: boolean;usage:{tasks:number;habits:number};unlimited:boolean;onUpgrade:(kind:'tasks'|'habits')=>void}) {
+export function Editor({task,habit,exists,close,save,remove,error,busy,usage,unlimited,onUpgrade,pendingDay}: {task: Task; habit: boolean; exists: boolean; close: () => void; save: (task: Task) => Promise<boolean>; remove: () => Promise<void>; error: string; busy: boolean;usage:{tasks:number;habits:number};unlimited:boolean;pendingDay?:D.Day;onUpgrade:(kind:'tasks'|'habits')=>void}) {
   const [value, setValue] = useState(task)
   const [kind, setKind] = useState<'today' | 'habit'>(habit ? 'habit' : 'today')
-  const [minutes, setMinutes] = useState(task.minutes?.toString() ?? '')
+  const [deadline,setDeadline]=useState(task.deadline??''),[remind,setRemind]=useState(!!task.remind)
   const [confirm, setConfirm] = useState(false)
   const [draft, setDraft] = useState<EditedPhoto>()
   const [adjusting, setAdjusting] = useState<PhotoEdit | null>(null)
@@ -40,20 +41,21 @@ export function Editor({task,habit,exists,close,save,remove,error,busy,usage,unl
     let newId: string | undefined
     try {
       if (draft) { newId = D.uid(); await putEditedPhoto(newId, draft) }
-      const success = await save({...value, kind, weekdays: recurring ? value.weekdays : [], minutes: minutes ? Number(minutes) : null, photoId: newId ?? photoId})
+      const success = await save({...value, kind, weekdays: recurring ? value.weekdays : [], deadline:deadline||undefined,remind:!!deadline&&remind, photoId: newId ?? photoId})
       if (!success && newId) await deletePhoto(newId).catch(() => {})
     } catch (e) { if (newId) await deletePhoto(newId).catch(() => {}); setPhotoError(e instanceof Error ? e.message : 'Could not save this photo. Your previous task is unchanged.') }
     finally { savingRef.current = false; setSaving(false) }
   }
   const locked = busy || saving || processing
   const quotaKind=recurring?'habits':'tasks',atLimit=usage[quotaKind]>=FREE[quotaKind]
+  const deadlineDay=pendingDay??(recurring?Array.from({length:7},(_,i)=>D.addDays(D.dayKey(),i)).find(day=>value.weekdays.includes(D.dateOf(day).getDay()))??D.dayKey():task.created)
   return <><Modal title={`${exists ? 'Edit' : 'New'} ${recurring ? 'habit' : 'task'}`} close={() => {if (!saving) close()}}>
     <form onSubmit={e => {e.preventDefault(); void submit()}}>
       <fieldset className="type-choice" disabled={exists || locked}><legend>What kind of little thing?</legend><div className="segmented"><button type="button" aria-pressed={!recurring} onClick={() => setKind('today')}>Today only</button><button type="button" aria-pressed={recurring} onClick={() => {setKind('habit'); if (!value.weekdays.length) setValue({...value, weekdays: [0,1,2,3,4,5,6]})}}>Recurring habit</button></div></fieldset>
       {exists && <p className="type-note">{recurring ? 'Recurring habit' : 'Today-only task'} · type stays fixed to protect history.</p>}
       <label>Title<input required maxLength={180} placeholder="One small thing…" value={value.title} onChange={e => setValue({...value,title:e.target.value})}/></label>
       <label>Notes <span className="optional">optional</span><textarea placeholder="A little encouragement, or a few details." maxLength={3000} rows={3} value={value.notes} onChange={e => setValue({...value,notes:e.target.value})}/></label>
-      <label>Estimated minutes <span className="optional">optional</span><input type="number" min={1} max={1440} step={1} placeholder="20" value={minutes} onChange={e => setMinutes(e.target.value)}/></label>
+      <fieldset className="deadline-picker"><legend>Complete by <span className="optional">optional</span></legend><label>Complete by<input type="time" value={deadline} onChange={e=>{setDeadline(e.target.value);if(!e.target.value)setRemind(false)}}/></label><button type="button" className="text-button" aria-pressed={!deadline} onClick={()=>{setDeadline('');setRemind(false)}}>No deadline</button>{deadline&&<><label className="reminder-choice"><input type="checkbox" checked={remind} onChange={e=>setRemind(e.target.checked)}/>Remind me 30 minutes before</label><p className="footnote">Background reminders are unavailable in this web app. Enabling this saves a preference only; it does not schedule a notification or request permission. Native iPhone reminders use a separate local deck.</p>{remind&&<p className="reminder-status" role="status">{webReminderStatus({day:deadlineDay,deadline,remind},new Date(),false)}</p>}</>}</fieldset>
       <fieldset className="photo-picker"><legend>Make it yours <span className="optional">optional</span></legend>
         <TaskVisual icon={value.icon} photoId={photoId} draft={draft?.rendered}/>
         <label>Icon<select aria-label="Task icon" value={value.icon ?? 'neutral'} onChange={e => setValue({...value,icon:e.target.value as Visual})}>{Object.entries(D.visualNames).map(([id,name]) => <option key={id} value={id}>{name}</option>)}</select></label>
@@ -62,7 +64,7 @@ export function Editor({task,habit,exists,close,save,remove,error,busy,usage,unl
         <p className="photo-privacy">Only the photo you select is added. It stays on this device.</p><p className="footnote">Photo library or files · JPEG, PNG, WebP, AVIF · up to 20 MB. Crop resized to 1200 px; source kept locally for re-editing.</p>
         {photoError && <p className="field-error" role="alert">{photoError}</p>}
       </fieldset>
-      {recurring && <fieldset><legend>Make it a rhythm</legend><div className="schedule-choice"><button type="button" className="text-button" aria-pressed={value.weekdays.length === 7} onClick={() => setValue({...value,weekdays:[0,1,2,3,4,5,6]})}>Every day</button><span>or selected weekdays</span></div><div className="weekday-picker">{[1,2,3,4,5,6,0].map(d => <button type="button" key={d} aria-pressed={value.weekdays.includes(d)} onClick={() => setValue({...value,weekdays:value.weekdays.includes(d) ? value.weekdays.filter(n => n !== d) : [...value.weekdays,d]})}>{weekNames[d]}</button>)}</div>{!value.weekdays.length && <p className="field-error">Choose at least one weekday.</p>}{exists && <p className="footnote">Schedule and text edits apply from {D.prettyDay(D.editEffectiveFrom(task),{weekday:'long',month:'short',day:'numeric'})}{D.editEffectiveFrom(task)===D.addDays(D.dayKey(),1)?' (tomorrow)':''}. Today’s occurrences and history stay unchanged. Photos and icons update today’s pending card; past dates keep their visuals.{D.editEffectiveFrom(task)>D.addDays(D.dayKey(),1)&&' A later local date was already visited on this device, so those saved dates also stay unchanged.'}</p>}</fieldset>}
+      {recurring && <fieldset><legend>Make it a rhythm</legend><div className="schedule-choice"><button type="button" className="text-button" aria-pressed={value.weekdays.length === 7} onClick={() => setValue({...value,weekdays:[0,1,2,3,4,5,6]})}>Every day</button><span>or selected weekdays</span></div><div className="weekday-picker">{[1,2,3,4,5,6,0].map(d => <button type="button" key={d} aria-pressed={value.weekdays.includes(d)} onClick={() => setValue({...value,weekdays:value.weekdays.includes(d) ? value.weekdays.filter(n => n !== d) : [...value.weekdays,d]})}>{weekNames[d]}</button>)}</div>{!value.weekdays.length && <p className="field-error">Choose at least one weekday.</p>}{exists && <p className="footnote">Schedule and text edits apply from {D.prettyDay(D.editEffectiveFrom(task),{weekday:'long',month:'short',day:'numeric'})}{D.editEffectiveFrom(task)===D.addDays(D.dayKey(),1)?' (tomorrow)':''}. Deadline/reminder changes apply immediately to unfinished occurrences from today onward; past and finished records stay unchanged. Photos and icons update today’s pending card; past dates keep their visuals.{D.editEffectiveFrom(task)>D.addDays(D.dayKey(),1)&&' A later local date was already visited on this device, so those saved dates also stay unchanged.'}</p>}</fieldset>}
       {error && <p className="field-error" role="alert">{error} Your edits are still here.</p>}
       <div className="form-actions">{!unlimited&&<div className="form-quota" aria-label="Selected type allowance"><p>{usage[quotaKind]} of {FREE[quotaKind]} {recurring?'habits':'active tasks'}</p>{!exists&&atLimit&&<div className="quota-limit"><p>{recurring?'Your free habit allowance is full. Upgrade to add another habit, or delete an active habit.':'Your free active-task allowance is full. Upgrade to add another task, or complete, skip, or delete an active task.'}</p><button type="button" className="text-button" disabled={locked} onClick={()=>onUpgrade(quotaKind)}>Upgrade</button></div>}</div>}<button type="button" className="secondary" disabled={saving} onClick={close}>Cancel</button><button className="primary" disabled={locked || !value.title.trim() || (recurring && !value.weekdays.length)}>{saving ? 'Saving…' : `Save ${recurring ? 'habit' : 'task'}`}</button></div>
       {exists && <div className="delete-section"><button type="button" disabled={locked} className="text-button danger" onClick={() => setConfirm(true)}><Trash2 size={15}/>Delete {recurring ? 'habit' : 'task'}</button></div>}

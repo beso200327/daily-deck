@@ -1,3 +1,4 @@
+import {validTime} from './deadlines'
 import {storageSuffix} from './environment'
 export type Day = string
 export type Action = 'done' | 'later' | 'skip' | 'delete' | 'undo' | 'reorder'
@@ -5,9 +6,10 @@ export type Outcome = 'completed' | 'postponed' | 'skipped' | 'missed' | 'pendin
 export type Visual = 'neutral' | 'walk' | 'read' | 'water' | 'focus' | 'stretch'
 export type Appearance = { day: Day; icon: Visual; photoId?: string }
 export type ScheduleVersion = {effectiveFrom:Day;weekdays:number[];title:string;notes:string;minutes:number|null;edited?:boolean}
-export type Task = {scheduleVersions?:ScheduleVersion[]; kind?: 'today' | 'habit'; icon?: Visual; photoId?: string; id: string; title: string; notes: string; minutes: number | null; weekdays: number[]; created: Day; through?: Day; archived: boolean }
+export type DeadlineVersion={effectiveFrom:Day;deadline?:string;remind?:boolean}
+export type Task = {deadline?:string;remind?:boolean;deadlineVersions?:DeadlineVersion[];scheduleVersions?:ScheduleVersion[]; kind?: 'today' | 'habit'; icon?: Visual; photoId?: string; id: string; title: string; notes: string; minutes: number | null; weekdays: number[]; created: Day; through?: Day; archived: boolean }
 export type Event = { sequence?: number; id: string; action: Action; at: string; day: Day; order: number; target?: string }
-export type Card = { icon?: Visual; photoId?: string; appearances?: Appearance[]; id: string; taskId: string; title: string; notes: string; minutes: number | null; habit: boolean; day: Day; initialOrder: number; events: Event[] }
+export type Card = { deadline?:string;remind?:boolean; icon?: Visual; photoId?: string; appearances?: Appearance[]; id: string; taskId: string; title: string; notes: string; minutes: number | null; habit: boolean; day: Day; initialOrder: number; events: Event[] }
 export type Deck = { version: 1; tasks: Task[]; cards: Card[] }
 export const visualNames: Record<Visual, string> = { neutral: 'Simple card', walk: 'Walking', read: 'Reading', water: 'Water', focus: 'Focus', stretch: 'Stretch' }
 export const isHabit = (task: Task) => task.kind === 'habit' || (task.kind === undefined && task.weekdays.length > 0)
@@ -54,6 +56,7 @@ function scheduleVersion(task:Task,effectiveFrom:Day,edited=false):ScheduleVersi
 export function scheduleOn(task:Task,day:Day):ScheduleVersion|undefined {return task.scheduleVersions?.filter(v=>v.effectiveFrom<=day).at(-1)}
 export function editEffectiveFrom(task:Task,today=dayKey()):Day {return addDays(task.through&&task.through>today?task.through:today,1)}
 export function pendingScheduleChange(task:Task,today=dayKey()){return task.scheduleVersions?.findLast(v=>v.edited&&v.effectiveFrom>today)?.effectiveFrom}
+export function deadlineOn(task:Task,day:Day):Pick<Task,'deadline'|'remind'>{return task.deadlineVersions?.filter(v=>v.effectiveFrom<=day).at(-1)??(task.deadlineVersions?{}:task)}
 export function roll(deck: Deck, today = dayKey()) {
   const pairs=new Set(deck.cards.map(c=>JSON.stringify([c.taskId,c.day])))
   let nextOrder=Math.max(0,...deck.cards.map(order))
@@ -73,7 +76,7 @@ export function roll(deck: Deck, today = dayKey()) {
       const version=isHabit(task)?scheduleOn(task,day):undefined
       const scheduled=isHabit(task)?!!version?.weekdays.includes(dateOf(day).getDay()):day===task.created
       if(!scheduled)return
-      deck.cards.push({id:uid(),taskId:task.id,title:version?.title??task.title,notes:version?.notes??task.notes,minutes:version?version.minutes:task.minutes,icon:task.icon??'neutral',photoId:task.photoId,habit:isHabit(task),day,initialOrder:++nextOrder,events:[]})
+      deck.cards.push({id:uid(),taskId:task.id,title:version?.title??task.title,notes:version?.notes??task.notes,minutes:version?version.minutes:task.minutes,icon:task.icon??'neutral',photoId:task.photoId,deadline:deadlineOn(task,day).deadline,remind:deadlineOn(task,day).remind,habit:isHabit(task),day,initialOrder:++nextOrder,events:[]})
       pairs.add(JSON.stringify([task.id,day]))
     }
     let day=task.through?addDays(task.through,1):task.created
@@ -85,19 +88,27 @@ export function roll(deck: Deck, today = dayKey()) {
   }
 }
 export function saveTask(deck: Deck, task: Task, today = dayKey()) {
-  if (!task.title.trim() || (task.minutes !== null && (!Number.isInteger(task.minutes) || task.minutes < 1 || task.minutes > 1440))) throw new Error('Add a title and an estimate from 1 to 1440 minutes.')
+  if (!task.title.trim()) throw new Error('Add a title for this task or habit.')
   if (isHabit(task) && !task.weekdays.length) throw new Error('Choose at least one weekday for a recurring habit.')
   if (task.weekdays.some(n => !Number.isInteger(n) || n < 0 || n > 6)) throw new Error('Choose valid weekdays.')
-  task = { ...task, kind: isHabit(task) ? 'habit' : 'today', weekdays: isHabit(task) ? [...new Set(task.weekdays)] : [], icon: task.icon ?? 'neutral' }
+  if(task.deadline!==undefined&&!validTime(task.deadline))throw new Error('Choose a valid Complete by time or No deadline.')
+  task = { ...task, remind:!!task.deadline&&!!task.remind, kind: isHabit(task) ? 'habit' : 'today', weekdays: isHabit(task) ? [...new Set(task.weekdays)] : [], icon: task.icon ?? 'neutral' }
   roll(deck, today)
   const existing = deck.tasks.find(t => t.id === task.id)
   if (existing) {
     if (isHabit(existing) !== isHabit(task)) throw new Error('Create a new task to change its type; existing history is preserved.')
+    const deadlineChanged=existing.deadline!==task.deadline||!!existing.remind!==!!task.remind
+    const deadlineVersions=existing.deadlineVersions
     const through = existing.through
     const versions=existing.scheduleVersions
     const changed=isHabit(existing)&&(existing.title!==task.title.trim()||existing.notes!==task.notes||existing.minutes!==task.minutes||existing.weekdays.slice().sort().join(',')!==task.weekdays.slice().sort().join(','))
     const effective=editEffectiveFrom(existing,today)
-    Object.assign(existing, task, { through, scheduleVersions:versions, title: task.title.trim() })
+    Object.assign(existing, task, { through, deadlineVersions, scheduleVersions:versions, title: task.title.trim() })
+    if(deadlineChanged){
+      const baseline=deadlineVersions??[{effectiveFrom:existing.created}]
+      existing.deadlineVersions=[...baseline.filter(v=>v.effectiveFrom<today),{effectiveFrom:today,deadline:task.deadline,remind:task.remind}]
+      for(const card of deck.cards.filter(c=>c.taskId===task.id&&!terminal(c)&&(!c.habit||c.day>=today))){card.deadline=task.deadline;card.remind=task.remind}
+    }
     if(changed)existing.scheduleVersions=[...(versions??[]).filter(v=>v.effectiveFrom!==effective),scheduleVersion(existing,effective,true)].sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom))
     if (!isHabit(task)) deck.cards.filter(c => c.taskId === task.id && !terminal(c)).forEach(c => Object.assign(c, { title: task.title.trim(), notes: task.notes, minutes: task.minutes }))
     for (const card of pending(deck, today).filter(c => c.taskId === task.id)) {
@@ -106,7 +117,7 @@ export function saveTask(deck: Deck, task: Task, today = dayKey()) {
         card.appearances = [...(card.appearances ?? []).filter(a => a.day !== today), {day: today, icon: task.icon!, photoId: task.photoId}]
       }
     }
-  } else {const fresh={...task,created:today,through:undefined,title:task.title.trim(),scheduleVersions:undefined as ScheduleVersion[]|undefined};if(isHabit(fresh))fresh.scheduleVersions=[scheduleVersion(fresh,today)];deck.tasks.push(fresh)}
+  } else {const fresh={...task,created:today,through:undefined,title:task.title.trim(),scheduleVersions:undefined as ScheduleVersion[]|undefined,deadlineVersions:task.deadline?[{effectiveFrom:today,deadline:task.deadline,remind:task.remind}]:undefined};if(isHabit(fresh))fresh.scheduleVersions=[scheduleVersion(fresh,today)];deck.tasks.push(fresh)}
   roll(deck, today)
   if(!existing){
     const card=pending(deck,today).find(c=>c.taskId===task.id)
@@ -176,6 +187,8 @@ export function decode(raw: string): Deck {
   if (!d.tasks.every(t => (t.kind === undefined || t.kind === 'today' || t.kind === 'habit') && validVisual(t.icon) && validPhoto(t.photoId)) ||
       !d.cards.every(c => validVisual(c.icon) && validPhoto(c.photoId) && (c.appearances === undefined || (Array.isArray(c.appearances) && c.appearances.every(a => validDay(a.day) && validVisual(a.icon) && validPhoto(a.photoId)))))) throw new Error('Saved image metadata is unreadable. Your stored data has not been changed.')
   if(!d.tasks.every(t=>t.scheduleVersions===undefined||(isHabit(t)&&Array.isArray(t.scheduleVersions)&&t.scheduleVersions.length>0&&t.scheduleVersions.every((v,i)=>validDay(v.effectiveFrom)&&(i===0||t.scheduleVersions![i-1].effectiveFrom<v.effectiveFrom)&&string(v.title)&&string(v.notes)&&(v.minutes===null||(Number.isInteger(v.minutes)&&v.minutes>=1&&v.minutes<=1440))&&Array.isArray(v.weekdays)&&v.weekdays.length>0&&new Set(v.weekdays).size===v.weekdays.length&&v.weekdays.every(n=>Number.isInteger(n)&&n>=0&&n<=6)&&(v.edited===undefined||typeof v.edited==='boolean')))))throw new Error('Saved schedule history is unreadable. Your stored data has not been changed.')
+  const validDeadline=(v:{deadline?:string;remind?:boolean})=>(v.deadline===undefined||validTime(v.deadline))&&(v.remind===undefined||typeof v.remind==='boolean')&&(!v.remind||!!v.deadline)
+  if(!d.tasks.every(t=>validDeadline(t)&&(t.deadlineVersions===undefined||(Array.isArray(t.deadlineVersions)&&t.deadlineVersions.length>0&&t.deadlineVersions.every((v,i)=>validDeadline(v)&&validDay(v.effectiveFrom)&&(i===0||t.deadlineVersions![i-1].effectiveFrom<v.effectiveFrom)))))||!d.cards.every(validDeadline))throw new Error('Saved deadline metadata is unreadable. Your stored data has not been changed.')
   return migrate(d)
 }
 export function load(storage: Pick<Storage, 'getItem'>, today = dayKey()): Deck { const raw = storage.getItem(STORAGE_KEY); const deck = raw === null ? seed(today) : decode(raw); roll(deck, today); return deck }
