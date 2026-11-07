@@ -1,3 +1,4 @@
+import {secondary,preview} from './navigation'
 import {test,expect,type Page} from '@playwright/test'
 const key='daily-deck.web.v1',active=(p:Page)=>p.getByTestId('active-card')
 const state=(p:Page)=>p.evaluate(k=>JSON.parse(localStorage.getItem(k)!),key)
@@ -8,14 +9,14 @@ for(const entry of ['today','habits','tile','progress','empty','manage'])test(`h
   if(entry==='empty'){await page.evaluate(k=>{const d=JSON.parse(localStorage.getItem(k)!);d.tasks.forEach((t:any)=>t.archived=true);d.cards=[];localStorage.setItem(k,JSON.stringify(d))},key);await page.reload();await expect(page.getByRole('button',{name:'Add one small thing',exact:true})).toBeVisible()}
   const before=await state(page),ids=before.cards.map((c:any)=>c.id)
   if(entry==='habits'||entry==='tile'){await page.getByRole('button',{name:'Habits',exact:true}).click();await page.getByRole('button',{name:entry==='habits'?'New habit':'Make a little ritual Start small. Make it yours.',exact:true}).click()}
-  else if(entry==='manage'){await page.getByRole('button',{name:'Manage one-time tasks',exact:true}).click();await page.getByRole('dialog',{name:'One-time tasks',exact:true}).getByRole('button',{name:'Add a task',exact:true}).click()}
+  else if(entry==='manage'){await secondary(page,'Manage one-time tasks');await page.getByRole('dialog',{name:'One-time tasks',exact:true}).getByRole('button',{name:'Add a task',exact:true}).click()}
   else if(entry==='empty')await page.getByRole('button',{name:'Add one small thing',exact:true}).click()
   else{if(entry==='progress')await page.getByRole('button',{name:'Progress',exact:true}).click();await page.getByRole('button',{name:'Add a task',exact:true}).click()}
   await page.getByRole('button',{name:'Recurring habit',exact:true}).click();const title=`${entry} ${selected?'today':'Friday'}`;await page.getByLabel('Title',{exact:true}).fill(title)
   for(const day of ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'])if(day!==(selected?'Thu':'Fri'))await page.getByRole('button',{name:day,exact:true}).click()
   await page.getByRole('button',{name:'Save habit',exact:true}).evaluate((el:HTMLButtonElement)=>{el.click();el.click();el.click()});await expect(page.getByRole('dialog')).toHaveCount(0)
   let d=await state(page),habit=d.tasks.find((t:any)=>t.title===title),cards=d.cards.filter((c:any)=>c.taskId===habit.id);expect(d.tasks.filter((t:any)=>t.title===title)).toHaveLength(1);expect(cards).toHaveLength(selected?1:0);expect(d.cards.filter((c:any)=>ids.includes(c.id))).toEqual(before.cards)
-  if(selected){await expect(active(page).locator('h2')).toHaveText(title);await expect(page.getByTestId('queue-count')).toHaveText(String(before.cards.length+1));await expect(page.getByRole('region',{name:'Widget preview',exact:true})).toContainText(title);await expect(page.locator('.deck-section')).toHaveAttribute('data-created-id',cards[0].id);const priorOrder=before.cards.slice().sort((a:any,b:any)=>a.initialOrder-b.initialOrder).map((c:any)=>c.id);expect(d.cards.slice().sort((a:any,b:any)=>a.initialOrder-b.initialOrder).slice(1).map((c:any)=>c.id)).toEqual(priorOrder)}else await expect(page.locator('.habit-card').filter({hasText:title})).toBeVisible()
+  if(selected){await expect(active(page).locator('h2')).toHaveText(title);await expect(page.getByTestId('queue-count')).toHaveText(String(before.cards.length+1));await preview(page,title);await expect(page.locator('.deck-section')).toHaveAttribute('data-created-id',cards[0].id);const priorOrder=before.cards.slice().sort((a:any,b:any)=>a.initialOrder-b.initialOrder).map((c:any)=>c.id);expect(d.cards.slice().sort((a:any,b:any)=>a.initialOrder-b.initialOrder).slice(1).map((c:any)=>c.id)).toEqual(priorOrder)}else await expect(page.locator('.habit-card').filter({hasText:title})).toBeVisible()
   await page.reload();d=await state(page);expect(d.cards.filter((c:any)=>c.taskId===habit.id).map((c:any)=>c.id)).toEqual(cards.map((c:any)=>c.id));if(selected)await expect(active(page)).toHaveAttribute('data-card-id',cards[0].id)
  }
 })

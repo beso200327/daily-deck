@@ -4,7 +4,7 @@ import {appearance,type Card} from './deck'
 import {TaskVisual} from './visuals'
 import {phaseDuration} from './motion'
 export type Exit={id:string;card:Card;action:'done'|'later'|'skip';single:boolean;phase:'out'|'return';fromTransform?:string}
-export function TaskDeck({cards,onAction,onEdit,busy,exit,onExitComplete}:{cards:Card[];onAction:(action:'done'|'later')=>void;onEdit:()=>void;busy:boolean;exit:Exit|null;onExitComplete:(id:string,phase:Exit['phase'])=>void}){
+export function TaskDeck({cards,onAction,onEdit,busy,exit,onExitComplete,onDetails}:{onDetails?:()=>void;cards:Card[];onAction:(action:'done'|'later')=>void;onEdit:()=>void;busy:boolean;exit:Exit|null;onExitComplete:(id:string,phase:Exit['phase'])=>void}){
  const [drag,setDrag]=useState({id:'',x:0}),[dragging,setDragging]=useState(false),[spring,setSpring]=useState(false)
  const retained=useRef<Card[]>([]),released=useRef(0)
  useEffect(()=>{if(!exit)released.current=0},[exit])
@@ -36,7 +36,7 @@ export function TaskDeck({cards,onAction,onEdit,busy,exit,onExitComplete}:{cards
    onPointerMove={e=>{const p=pointer.current;if(!p||p.id!==e.pointerId||p.card!==card.id||busy)return;const dx=e.clientX-p.x,dy=e.clientY-p.y;if(Math.abs(dx)>Math.abs(dy))setDrag({id:card.id,x:Math.max(-Math.min(450,(stack.current?.getBoundingClientRect().right??400)-sideEdge-48),Math.min(450,dx))})}}
    onPointerUp={e=>{const p=pointer.current;pointer.current=null;setDragging(false);if(p&&p.id===e.pointerId&&p.card===card.id&&!busy){const dx=e.clientX-p.x,dy=e.clientY-p.y,speed=Math.abs(dx)/Math.max(1,performance.now()-p.time);if(Math.abs(dx)>Math.abs(dy)&&(Math.abs(dx)>85||(Math.abs(dx)>35&&speed>.65))){released.current=drag.id===card.id?drag.x:0;onAction(dx>0?'done':'later');}else setSpring(true)}setDrag({id:'',x:0})}}
    onPointerCancel={()=>{pointer.current=null;setDragging(false);setSpring(true);setDrag({id:'',x:0})}} onLostPointerCapture={()=>{pointer.current=null;setDragging(false)}} aria-label={`${front?'Current':'Next'} task: ${card.title}`}>
-   <div className="card-top"><span className="pill">{card.habit?'RECURRING HABIT':'TODAY ONLY'}</span>{front&&<button type="button" className="icon-button" disabled={busy} aria-label="Edit current task" onClick={onEdit}><Pencil size={17}/></button>}</div><TaskVisual {...visual}/><div className="card-copy"><h2>{card.title}</h2><p>{card.notes||'A little focus. A little forward.'}</p>{card.minutes&&<span className="duration"><Clock3 size={15}/>{card.minutes} min</span>}</div>
+   <div className="card-top"><span className="pill">{card.habit?'RECURRING HABIT':'TODAY ONLY'}</span>{front&&<button type="button" className="icon-button" disabled={busy} aria-label="Edit current task" onClick={onEdit}><Pencil size={17}/></button>}</div><TaskVisual {...visual}/><div className="card-copy"><h2>{card.title}</h2><p>{card.notes||'A little focus. A little forward.'}</p><div className="card-meta">{card.minutes&&<span className="duration"><Clock3 size={15}/>{card.minutes} min</span>}{front&&onDetails&&(card.title.length>35||card.notes.length>35)&&<button type="button" className="text-button card-details" disabled={busy} onClick={onDetails}>View details</button>}</div></div>
    {front&&(Math.abs(x)>45||releasing)&&<span className={`swipe-label ${(releasing?exit.action==='done':x>0)?'right':'left'}`}>{releasing?(exit.action==='done'?'Done':exit.action==='skip'?'Skip':'Later'):x>0?'Done':'Later'}</span>}
   </article>
  })}</div>

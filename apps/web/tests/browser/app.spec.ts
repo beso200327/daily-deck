@@ -1,16 +1,17 @@
+import {secondary} from './navigation'
 import { test, expect } from '@playwright/test'
 test.beforeEach(async({page})=>{await page.goto('/');await expect(page.getByRole('heading',{name:'Walk for 20 minutes',exact:true})).toBeVisible()})
 test('complete, postpone, undo, reload and keyboard controls',async({page})=>{
  await page.getByRole('button',{name:'Later',exact:true}).click();await expect(page.getByRole('heading',{name:'Read 10 pages',exact:true})).toBeVisible()
- await page.getByRole('button',{name:'Undo last action'}).click();await expect(page.getByRole('heading',{name:'Walk for 20 minutes',exact:true})).toBeVisible()
+ await secondary(page,'Undo last action');await expect(page.getByRole('heading',{name:'Walk for 20 minutes',exact:true})).toBeVisible()
  await page.getByRole('button',{name:'Done',exact:true}).focus();await page.keyboard.press('Enter');await expect(page.getByRole('heading',{name:'Read 10 pages',exact:true})).toBeVisible();await page.reload();await expect(page.getByRole('heading',{name:'Read 10 pages',exact:true})).toBeVisible()
  await page.getByRole('button',{name:'Progress',exact:true}).click();await expect(page.getByTestId('summary')).toContainText('1 completed');await expect(page.getByText(/Completed at/)).toBeVisible()
 })
 test('create edit reorder skip and delete a task',async({page})=>{
  await page.getByRole('button',{name:'Add a task',exact:true}).click();await page.getByLabel('Title',{exact:true}).fill('Plan tomorrow');await page.getByLabel('Notes').fill('Leave a little breathing room.');await page.getByRole('button',{name:'Save task',exact:true}).click()
- await page.getByRole('button',{name:'Reorder deck'}).click();await expect(page.getByRole('button',{name:'Move Plan tomorrow up'})).toBeDisabled();await page.getByRole('dialog').getByRole('button',{name:'Done',exact:true}).click();await expect(page.getByRole('heading',{name:'Plan tomorrow',exact:true})).toBeVisible()
- await page.getByRole('button',{name:'Edit current task'}).click();await page.getByLabel('Title',{exact:true}).fill('Plan a calm tomorrow');await page.getByRole('button',{name:'Save task',exact:true}).click();await expect(page.getByRole('heading',{name:'Plan a calm tomorrow',exact:true})).toBeVisible();await page.getByRole('button',{name:'Skip today',exact:true}).click()
- await page.getByRole('button',{name:'Manage one-time tasks',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:/Plan a calm tomorrow/}).click();await page.getByRole('button',{name:'Delete task',exact:true}).click();await page.getByRole('dialog',{name:'Delete task?',exact:true}).getByRole('button',{name:'Delete task',exact:true}).click();await expect(page.getByRole('dialog')).toHaveCount(0)
+ await secondary(page,'Reorder deck');await expect(page.getByRole('button',{name:'Move Plan tomorrow up'})).toBeDisabled();await page.getByRole('dialog').getByRole('button',{name:'Done',exact:true}).click();await expect(page.getByRole('heading',{name:'Plan tomorrow',exact:true})).toBeVisible()
+ await page.getByRole('button',{name:'Edit current task'}).click();await page.getByLabel('Title',{exact:true}).fill('Plan a calm tomorrow');await page.getByRole('button',{name:'Save task',exact:true}).click();await expect(page.getByRole('heading',{name:'Plan a calm tomorrow',exact:true})).toBeVisible();await secondary(page,'Skip today')
+ await secondary(page,'Manage one-time tasks');await page.getByRole('dialog').getByRole('button',{name:/Plan a calm tomorrow/}).click();await page.getByRole('button',{name:'Delete task',exact:true}).click();await page.getByRole('dialog',{name:'Delete task?',exact:true}).getByRole('button',{name:'Delete task',exact:true}).click();await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 test('habit scheduling, preserved history, calendar and filters',async({page})=>{
  await page.getByRole('button',{name:'Habits',exact:true}).click();await page.getByRole('button',{name:/Walk for 20 minutes/}).click();await page.getByLabel('Title',{exact:true}).fill('Walk outside');await page.getByRole('button',{name:'Sun',exact:true}).click();await page.getByRole('button',{name:'Save habit',exact:true}).click()

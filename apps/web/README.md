@@ -61,7 +61,7 @@ Existing version-one decks migrate additively and idempotently: IDs, occurrences
 
 ## Home Screen installation and widget preview
 
-Open the app over HTTPS (or localhost for development). Installation controls and an **Installation guide** are available in the app:
+Open the app over HTTPS (or localhost for development). Open **More actions → Help & settings** on mobile (or **About your local deck** on desktop) for installation controls and the **Installation guide**:
 
 - **iPhone/iPad Safari:** Share → Add to Home Screen → Add. On supported iOS versions, enable Open as Web App.
 - **Chrome/Edge:** use Install on Home Screen or the browser’s install icon/menu.
@@ -69,7 +69,7 @@ Open the app over HTTPS (or localhost for development). Installation controls an
 
 The manifest uses standalone display, themed 192/512 px icons, and an Apple touch icon. Installing launches the **web app**, not a native iOS Home Screen widget. Browser/OS profiles, separately isolated installs, and other devices do not sync their local decks.
 
-The clearly labeled **Widget preview** in Today shows the actual next task, image and remaining count. Its Done/Later buttons use the same guarded data operations and undo history as the deck. It is an interaction test inside the page, **not an OS widget**. The existing native WidgetKit extension remains separate and unchanged.
+The clearly labeled **Widget preview** in **Help & settings** shows the actual next task, image and remaining count. Its Done/Later buttons use the same guarded data operations and undo history as the deck. It is an interaction test inside the page, **not an OS widget**. The existing native WidgetKit extension remains separate and unchanged.
 
 The service worker is generated for production builds; use `npm run build` followed by `npm run preview` to test installation/offline behavior locally. Each production build generates a versioned service worker and precaches that build’s shell, hashed JS/CSS, manifest and icons. User data/photos are not stored in the shell cache. Navigation uses the active worker’s consistent cached shell; unknown/non-app requests are not cached. Updated workers wait. A Reload update button is offered and disabled while a form or action is in progress; the user must save/cancel first. Only the consenting tab reloads automatically after activation; other tabs can reload when ready. The previous cache version is retained for in-flight clients, and older Daily Deck shell caches are removed. Service-worker and manifest responses have no-cache headers. First-time installation does not offer a false update prompt.
 
@@ -141,3 +141,9 @@ New habits scheduled today appear immediately in the same state used by Today, t
 Newly created tasks and today's new habit occurrences go first, with their position saved across reloads. Existing cards retain their relative order; editing does not move a card. The new card's brief entrance/highlight and accessible announcement replace creation toasts. The sidebar reveals its first item internally, and mobile reveals the active card after closing the editor. Other-day habits appear in Habits. See [creation feedback details](../../docs/creation-feedback.md).
 
 The creation footer shows only the selected type's free allowance, with contextual Upgrade guidance at capacity; Pro hides this messaging. Habit creation uses the same immediate top-card feedback through every entry point. Done retains the outgoing card through a 320 ms release animation (90 ms stationary fade with reduced motion), then saves completion and advances. See [habit/quota/Done validation details](../../docs/habit-quota-and-done.md).
+
+## Focused mobile Today
+
+Mobile Today fits the available viewport: compact date/header and +, real stacked cards with edit, labeled Later/Done, and bottom navigation. Open **More actions** for Skip today, Reorder deck, Manage one-time tasks, Undo, task details, and Help & settings. Long content has a full task-details view; creation/editing forms scroll inside their dialogs.
+
+Today totals and the completion bar live in the existing Progress summary. Widget preview, installation instructions, plan usage and local-data controls are in Help & settings. Desktop keeps its compact sidebar and overview. Mobile height adapts to visual viewport/browser chrome and safe areas; unusually short screens, page zoom or enlarged text allow natural scrolling so controls stay reachable. Zoom remains enabled. See [layout validation and evidence](../../docs/mobile-today.md).
