@@ -1,3 +1,5 @@
+import {usePage} from './navigation'
+import {Startup} from './Startup'
 import React, { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { House, Layers, BarChart3, Plus, X, Check, RotateCcw, Clock3, ArrowUp, ArrowDown, Pencil, Trash2, ChevronLeft, ChevronRight, Leaf, ArrowUpRight, CalendarDays } from 'lucide-react'
@@ -7,7 +9,7 @@ import './styles.css'
 import { Modal } from './Modal'
 import {Notifications} from './Notifications'
 import {SupabaseConnection} from './SupabaseConnection'
-import {AccountSection,AuthDialog,useAuth} from './Auth'
+import {AccountSection,useAuth} from './Auth'
 import {auth} from './auth-store'
 import {cloud} from './cloud-store'
 import {useCloud} from './CloudControls'
@@ -50,7 +52,7 @@ function App() {
   useEffect(()=>{if(!TEST_MODE)return;const update=()=>setPro(isPro());window.addEventListener('daily-deck-entitlement',update);window.addEventListener('storage',update);const t=setInterval(update,1000);return()=>{clearInterval(t);window.removeEventListener('daily-deck-entitlement',update);window.removeEventListener('storage',update)}},[])
   const [deck, setDeck] = useState<Deck | null>(null)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState('Today')
+  const [tab, setTab] = usePage()
   const [today, setToday] = useState(D.dayKey())
   const [editor, setEditor] = useState<Task | null>(null)
   const [editingHabit, setEditingHabit] = useState(false)
@@ -174,5 +176,5 @@ function Progress({deck,today,openDetail}:{deck:Deck;today:string;openDetail:(ca
 // Scrub callback credentials before any asynchronous Auth work or UI rendering.
 void auth.start()
 cloud.start()
-function SessionApp(){const s=useCloud();return <App key={s.scope}/> }
-createRoot(document.getElementById('root')!).render(<><SessionApp/><AuthDialog/></>)
+function SessionApp(){const s=useCloud();return <Startup><App key={s.scope}/></Startup> }
+createRoot(document.getElementById('root')!).render(<SessionApp/>)

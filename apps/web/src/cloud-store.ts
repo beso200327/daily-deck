@@ -20,6 +20,7 @@ import {
 } from './cloud-api'
 import { transfer, type Transfer } from './cloud-transfer'
 export type CloudState = {
+  selectionReady: boolean
   scope: string
   owner: string | null
   phase: 'local' | 'loading' | 'ready' | 'saving' | 'offline' | 'error'
@@ -47,6 +48,7 @@ const key = (owner: string, kind: string) =>
   `daily-deck.cloud.${owner}.${kind}.v1`
 export class CloudStore {
   private state: CloudState = {
+    selectionReady: false,
     scope: 'local',
     owner: null,
     phase: 'local',
@@ -83,15 +85,16 @@ export class CloudStore {
     this.stop = auth.subscribe(observe)
     observe()
   }
-  identityChanged() {
+  identityChanged(force = false) {
     const uid = this.deps.identity()
-    if (uid === this.uid) return
+    if (!force && uid === this.uid) return
     this.uid = uid
     this.epoch++
     this.confirmedRevision = -1
     this.staged = undefined
     setPhotoScope()
     this.state = {
+      selectionReady: false,
       scope: 'local',
       owner: uid ?? null,
       phase: 'local',
@@ -103,25 +106,22 @@ export class CloudStore {
       existing: null,
       notice: ''
     }
-    if (uid) {
-      try {
-        this.state.pending = this.readPending(uid)
-      } catch (e) {
-        this.state.error =
-          e instanceof Error ? e.message : 'Pending save unavailable.'
-      }
-    }
-    this.listeners.forEach((l) => l())
     try {
-      if (uid && this.deps.storage().getItem(key(uid, 'mode')) === 'cloud')
-        void this.open().catch(() => {})
+      if (uid) {
+        this.state.pending = this.readPending(uid)
+        if (this.deps.storage().getItem(key(uid, 'mode')) === 'cloud') {
+          void this.open().catch(e => {
+            if (this.uid === uid && this.state.scope === 'local') this.patch({error: e instanceof Error ? e.message : 'Cloud unavailable.'})
+          })
+          return
+        }
+      }
+      this.patch({selectionReady: true})
     } catch {
-      this.patch({
-        error:
-          'Account preferences could not be read. Keep using the original local deck.'
-      })
+      this.patch({error: 'Account preferences could not be read. Retry before opening a deck.'})
     }
   }
+
   private check(owner: string, epoch = this.epoch) {
     if (epoch !== this.epoch || this.deps.identity() !== owner)
       throw new CloudError(
@@ -277,6 +277,7 @@ export class CloudStore {
     const epoch = this.epoch
     setPhotoScope(owner)
     this.patch({
+      selectionReady: true,
       scope: owner,
       owner,
       phase: 'loading',
@@ -312,8 +313,7 @@ export class CloudStore {
       throw e
     }
   }
-  local() {
-    const owner = this.deps.identity()
+  local(owner = this.deps.identity()) {
     let error = '',
       pending: CloudRequest | null = null
     try {
@@ -330,6 +330,7 @@ export class CloudStore {
     this.staged = undefined
     setPhotoScope()
     this.patch({
+      selectionReady: true,
       scope: 'local',
       snapshot: null,
       phase: 'local',

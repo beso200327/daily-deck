@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test'
 import base from './playwright.config'
 export default defineConfig({
   testDir: 'tests/integration',
-  testMatch: 'cloud.browser.spec.ts',
+  testMatch: ['cloud.browser.spec.ts','startup.browser.spec.ts'],
   globalSetup: './tests/integration/cloud-db.ts',
   workers: 1,
   fullyParallel: false,

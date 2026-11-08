@@ -48,3 +48,18 @@ it('PKCE recovery trusts the SDK recovery event rather than the callback query',
 it('a late identity verification cannot restore a user after sign-out',async()=>{const f=fixture();await f.store.start();let finish!:(value:any)=>void;f.api.auth.getUser.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve}));f.setSession(session());f.emit('SIGNED_IN',session());await vi.waitFor(()=>expect(f.api.auth.getUser).toHaveBeenCalled());f.emit('SIGNED_OUT',null);await vi.waitFor(()=>expect(f.store.snapshot().user).toBeNull());await new Promise(resolve=>setTimeout(resolve,10));finish({data:{user:session().user},error:null});await new Promise(resolve=>setTimeout(resolve,10));expect(f.store.snapshot().user).toBeNull();expect(f.store.snapshot().onboarding).toBeNull()})
 it('an onboarding status for a different subject is never adopted',async()=>{const f=fixture(undefined,session());f.api.rpc.mockResolvedValue({data:{...setup,owner_id:'22222222-2222-2222-2222-222222222222',complete:true},error:null});await f.store.start();expect(f.store.snapshot().onboarding).toBeNull();expect(f.store.snapshot().screen).toBe('onboarding');expect(await f.store.onboard(true,true,false)).toBe(false)})
 it('sign-out failure leaves identity and local data intact with a useful error',async()=>{const f=fixture(undefined,session());await f.store.start();f.api.auth.signOut.mockResolvedValue({error:{code:'network_error'}} as any);expect(await f.store.signOut()).toBe(false);expect(f.store.snapshot().user?.id).toBe(uid);expect(f.store.snapshot().error).toContain('try again');expect(f.memory.get('daily-deck.web.v1')).toBe('unchanged local history')})
+it('distinguishes delayed verification, confirmed guest and verification failure',async()=>{
+ const guest=fixture();await guest.store.start();expect(guest.store.snapshot().identity).toBe('guest')
+ const pending=fixture(undefined,session());let release!:(value:any)=>void
+ pending.api.auth.getUser.mockImplementation(()=>new Promise(resolve=>{release=resolve}) as any)
+ const started=pending.store.start();await vi.waitFor(()=>expect(pending.api.auth.getUser).toHaveBeenCalled())
+ expect(pending.store.snapshot().identity).toBe('checking');expect(pending.store.snapshot().user).toBeNull()
+ release({data:{user:session().user},error:null});await started;expect(pending.store.snapshot().identity).toBe('verified')
+ const failed=fixture(undefined,session());failed.api.auth.getUser.mockResolvedValue({data:{user:null},error:{code:'unexpected_failure'}} as any)
+ await failed.store.start();expect(failed.store.snapshot().identity).toBe('error');expect(failed.store.snapshot().user).toBeNull()
+})
+it('failed session restoration cannot become guest merely because the SDK discarded an expired session',async()=>{
+ const f=fixture(undefined,session())
+ f.api.auth.getSession.mockResolvedValueOnce({data:{session:null},error:{code:'unexpected_failure'}} as any).mockResolvedValue({data:{session:null},error:null} as any)
+ await f.store.start();expect(f.store.snapshot().ready).toBe(true);expect(f.store.snapshot().identity).toBe('error');expect(await f.store.refresh()).toBe(false);expect(f.store.snapshot().identity).toBe('error');expect(f.store.snapshot().error).toContain('Sign in again')
+})

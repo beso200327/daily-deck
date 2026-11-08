@@ -2,7 +2,7 @@ import type {Session,SupabaseClient,User} from '@supabase/supabase-js'
 import {getSupabaseClient,supabaseConfiguration} from './supabase'
 import {AUTH_PREVIEW,authError,callbackURL,parseCallback,type AuthScreen} from './auth-policy'
 export type Onboarding={owner_id:string;mode:'blocked'|'preview';complete:boolean;minimum_age:16;preview_only:true;legal_pending:true}
-export type AuthState={ready:boolean;open:boolean;screen:AuthScreen;busy:boolean;user:Pick<User,'id'|'email'>|null;onboarding:Onboarding|null;providers:{google:boolean;apple:boolean}|null;notice:string;error:string;pendingEmail:string}
+export type AuthState={identity:'checking'|'guest'|'verified'|'error';ready:boolean;open:boolean;screen:AuthScreen;busy:boolean;user:Pick<User,'id'|'email'>|null;onboarding:Onboarding|null;providers:{google:boolean;apple:boolean}|null;notice:string;error:string;pendingEmail:string}
 type Dependencies={enabled:boolean;client:()=>Promise<SupabaseClient|null>;href:()=>string;clean:()=>void;navigate:(url:string)=>void;storage:()=>Pick<Storage,'getItem'|'setItem'|'removeItem'>|undefined}
 class AuthProblem extends Error {}
 const recoveryKey='daily-deck.auth.recovery-ui.v1'
@@ -13,7 +13,7 @@ function status(value:unknown):Onboarding|null{
 }
 /** Auth is independent of deck/photos/store. Only the SDK stores session credentials. */
 export class AuthStore{
- state:AuthState={ready:false,open:false,screen:'signin',busy:false,user:null,onboarding:null,providers:null,notice:'',error:'',pendingEmail:''}
+ state:AuthState={identity:'checking',ready:false,open:false,screen:'signin',busy:false,user:null,onboarding:null,providers:null,notice:'',error:'',pendingEmail:''}
  private listeners=new Set<()=>void>()
  private initialized:Promise<void>|undefined
  private api:SupabaseClient|null=null
@@ -34,7 +34,7 @@ export class AuthStore{
  start(){return this.initialized??=this.initialize()}
  private async initialize(){
   const callback=parseCallback(this.deps.href());if(callback.kind!=='none')this.deps.clean()
-  if(!this.enabled){this.patch({ready:true,open:callback.kind!=='none',error:callback.kind!=='none'?'Account testing is available only in the authorized Preview. Your local deck is unchanged.':''});return}
+  if(!this.enabled){this.patch({identity:'guest',ready:true,open:callback.kind!=='none',error:callback.kind!=='none'?'Account testing is available only in the authorized Preview. Your local deck is unchanged.':''});return}
   let recovery=false,notice='',error=''
   try{
    this.api=await this.deps.client();if(!this.api)throw new AuthProblem('Accounts are unavailable here. Continue with the local deck.')
@@ -56,9 +56,9 @@ export class AuthStore{
    }
    const result=await this.api.auth.getSession();if(result.error)throw result.error
    await this.adopt(result.data.session,recovery)
-  }catch(e){error=e instanceof AuthProblem?e.message:authError(e);if(this.api){try{const previous=await this.api.auth.getSession();if(!previous.error&&previous.data.session)await this.adopt(previous.data.session)}catch{/* Keep local mode available. */}}}
+  }catch(e){error=e instanceof AuthProblem?e.message:authError(e);if(this.api){try{const previous=await this.api.auth.getSession();if(!previous.error&&(previous.data.session||callback.kind!=='none'))await this.adopt(previous.data.session)}catch{/* Keep local mode available. */}}}
   finally{
-   this.patch({ready:true,...(callback.kind!=='none'?{open:true}:{}),...(notice?{notice}:{}),...(error?{error}: {})})
+   this.patch({ready:true,...(this.state.identity==='checking'?{identity:'error' as const}:{}),...(callback.kind!=='none'?{open:true}:{}),...(notice?{notice}:{}),...(error?{error}: {})})
    if(callback.kind!=='none')void this.providers()
    if(this.api){const {data}=this.api.auth.onAuthStateChange((event,session)=>{
     if(event==='INITIAL_SESSION')return
@@ -70,8 +70,8 @@ export class AuthStore{
  private async adopt(session:Session|null,recovery=false){
   if(session&&session.access_token===this.token&&this.state.user&&this.state.onboarding&&!recovery)return
   const sequence=++this.sequence;this.token=session?.access_token??''
-  if(session&&this.state.user?.id!==session.user.id)this.patch({user:null,onboarding:null})
-  if(!session){this.marker();this.patch({user:null,onboarding:null,...(['account','reset','onboarding'].includes(this.state.screen)?{screen:'signin' as const}:{})});return}
+  if(session&&this.state.user?.id!==session.user.id)this.patch({identity:'checking',user:null,onboarding:null})
+  if(!session){this.marker();this.patch({identity:'guest',user:null,onboarding:null,...(['account','reset','onboarding'].includes(this.state.screen)?{screen:'signin' as const}:{})});return}
   try{
    const verified=await this.api!.auth.getUser(session.access_token)
    if(sequence!==this.sequence)return
@@ -82,8 +82,8 @@ export class AuthStore{
    const result=await this.api!.rpc('daily_deck_auth_status')
    if(sequence!==this.sequence)return
    let onboarding=result.error?null:status(result.data);if(onboarding?.owner_id!==user.id)onboarding=null
-   this.patch({user,onboarding,screen:resetting?'reset':onboarding?.complete?'account':'onboarding',...(resetting?{open:true}:{}),...(!onboarding?{error:'Account setup is not available yet. You can still use the local deck.'}:{})})
-  }catch(e){if(sequence===this.sequence)this.patch({user:null,onboarding:null,error:e instanceof AuthProblem?e.message:authError(e)})}
+   this.patch({identity:'verified',user,onboarding,screen:resetting?'reset':onboarding?.complete?'account':'onboarding',...(resetting?{open:true}:{}),...(!onboarding?{error:'Account setup is not available yet. You can still use the local deck.'}:{})})
+  }catch(e){if(sequence===this.sequence)this.patch({identity:'error',user:null,onboarding:null,error:e instanceof AuthProblem?e.message:authError(e)})}
  }
  async open(screen?:AuthScreen,email?:string){screen??=this.state.user?(this.marker(this.state.user.id)?'reset':this.state.onboarding?.complete?'account':'onboarding'):'signin';this.patch({open:true,error:'',notice:'',...(screen?{screen}:{}),...(email!==undefined?{pendingEmail:email}:{})});await this.start();void this.providers()}
  close=()=>{if(!this.state.busy)this.patch({open:false,error:'',notice:'',pendingEmail:''})}
@@ -135,7 +135,7 @@ export class AuthStore{
   const onboarding=status(result.data);if(!onboarding?.complete||onboarding.owner_id!==subject||this.state.user?.id!==subject)throw new AuthProblem('Account setup is not available yet. The local deck remains available.')
   this.patch({onboarding,screen:'account',notice:'Preview account setup saved. Age was self-declared, not verified. Cloud storage is optional; choose a deck in Account.'})
  })
- refresh=()=>this.run(async()=>{const result=await this.api!.auth.getSession();if(result.error)throw result.error;this.token='';await this.adopt(result.data.session)})
+ refresh=()=>this.run(async()=>{const result=await this.api!.auth.getSession();if(result.error)throw result.error;if(!result.data.session&&this.state.identity==='error')throw new AuthProblem('Your account session is unavailable. Sign in again, or choose the local deck explicitly.');this.token='';await this.adopt(result.data.session)})
  signOut=()=>this.run(async()=>{const result=await this.api!.auth.signOut({scope:'local'});if(result.error)throw result.error;await this.adopt(null);this.patch({pendingEmail:'',screen:'signin',notice:'Signed out of this browser. Its local tasks, photos and history are unchanged.'});void this.providers()})
  dispose(){this.disposed=true;this.sequence++;this.unsubscribe?.();this.timers.forEach(clearTimeout);this.timers.clear();this.listeners.clear()}
 }

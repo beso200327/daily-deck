@@ -181,3 +181,9 @@ npm run test:cloud
 ```
 
 This browser suite uses the installed SDK and real disposable PostgreSQL authorization/transactions behind synthetic Auth/Storage HTTP; it is not hosted JWT/Storage verification. Real Safari/iPhone/Home Screen behavior, account deletion/export and approved legal documents remain release dependencies. The pre-import backup is the original guest snapshot, not a full ongoing cloud-account export.
+
+### Refresh and account startup
+
+Today, Habits and Progress use `#today`, `#habits` and `#progress` routes, including browser Back/Forward. Missing/invalid routes fall back to Today. Only these page names are restored; authentication callbacks are verified and scrubbed first. Callback URLs and credentials are never saved as navigation destinations.
+
+On startup, account verification and the account's saved local/cloud choice finish before the deck mounts. Cloud users see a neutral loading screen until an authoritative, owner-verified cloud read succeeds—even when the cloud deck is empty. Failed verification, unreadable preferences, or a cold-offline cloud read show retry/sign-in controls, with an explicit option to use the preserved local deck. They never automatically seed or fall back to starter cards. An already-open, verified cloud deck retains its existing read-only offline behavior. Account changes clear the rendered account deck while the next identity is checked. No existing guest data is moved or imported by these steps.

@@ -11,6 +11,7 @@ async function ready(p: Page) {
   await expect(active(p)).toBeVisible()
 }
 async function account(p: Page) {
+  await expect(p.getByRole('button', {name: 'Today', exact: true})).toBeVisible()
   if (
     await p
       .getByRole('dialog', { name: 'Your account', exact: true })

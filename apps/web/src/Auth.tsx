@@ -14,8 +14,8 @@ export function AccountSection(){
   {auth.enabled&&<button type="button" className="secondary" onClick={()=>void auth.open()}>{state.user?'Manage account':'Sign in or create account'}</button>}
  </section>
 }
-export function AuthDialog(){const state=useAuth();return state.open?<AuthForm key={`${state.screen}:${state.user?.id??'guest'}`} state={state}/>:null}
-function AuthForm({state}:{state:AuthState}){
+export function AuthDialog({continueLocal}:{continueLocal?:()=>void}={}){const state=useAuth();return state.open?<AuthForm key={`${state.screen}:${state.user?.id??'guest'}`} state={state} continueLocal={continueLocal}/>:null}
+function AuthForm({state,continueLocal}:{state:AuthState;continueLocal?:()=>void}){
  const id=useId(),[email,setEmail]=useState(state.pendingEmail),[password,setPassword]=useState(''),[confirm,setConfirm]=useState(''),[age,setAge]=useState(false),[preview,setPreview]=useState(false),[marketing,setMarketing]=useState(false)
  const {screen,busy}=state
  const sync=useCloud()
@@ -31,7 +31,7 @@ function AuthForm({state}:{state:AuthState}){
   else if(screen==='onboarding')void auth.onboard(age,preview,marketing)
  }
  const setupAvailable=state.onboarding?.mode==='preview'
- return <Modal title={titles[screen]} close={auth.close} initialFocus="heading" footer={<div className="form-actions auth-footer"><button type="button" className="secondary" disabled={busy} onClick={auth.close}>{sync.scope==='local'?'Continue in local mode':'Back to deck'}</button>{auth.enabled&&screen==='account'?<button type="button" className="primary" disabled={busy} onClick={()=>void auth.signOut()}>{busy?'Signing out…':'Sign out'}</button>:auth.enabled&&<button type="submit" className="primary" form={id} disabled={busy||!state.ready||(screen==='onboarding'&&!setupAvailable)}>{busy?'Working…':labels[screen]}</button>}</div>}>
+ return <Modal title={titles[screen]} close={auth.close} initialFocus="heading" footer={<div className="form-actions auth-footer"><button type="button" className="secondary" disabled={busy} onClick={()=>{if(sync.scope==='local')continueLocal?.();auth.close()}}>{sync.scope==='local'?'Continue in local mode':'Back to deck'}</button>{auth.enabled&&screen==='account'?<button type="button" className="primary" disabled={busy} onClick={()=>void auth.signOut()}>{busy?'Signing out…':'Sign out'}</button>:auth.enabled&&<button type="submit" className="primary" form={id} disabled={busy||!state.ready||(screen==='onboarding'&&!setupAvailable)}>{busy?'Working…':labels[screen]}</button>}</div>}>
   <div className="auth-notice"><strong>Preview testing only · ages 16+</strong><p>Approved terms and privacy documents are pending. This is not a public-release onboarding process.</p></div>
   <p className="auth-local-note">Your original device deck stays separate. Cloud storage starts only after an explicit choice and import confirmation.</p>
   {!auth.enabled?<p>Account testing is unavailable in this build. You can keep using the local deck.</p>:<form id={id} className="auth-form" onSubmit={submit}>
