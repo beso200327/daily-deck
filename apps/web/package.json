@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:supabase": "playwright test -c playwright.supabase.config.ts",
-    "test:supabase-build": "node scripts/verify-supabase-build.mjs"
+    "test:supabase-build": "node scripts/verify-supabase-build.mjs",
+    "test:auth": "playwright test -c playwright.auth.config.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.119.0",

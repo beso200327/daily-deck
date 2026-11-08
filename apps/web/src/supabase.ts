@@ -1,13 +1,14 @@
 import type {SupabaseClient} from '@supabase/supabase-js'
+import {AUTH_PREVIEW} from './auth-policy'
 import {readSupabaseConfiguration} from './supabase-config'
 export const supabaseConfiguration=readSupabaseConfiguration({VITE_SUPABASE_URL:import.meta.env.VITE_SUPABASE_URL,VITE_SUPABASE_PUBLISHABLE_KEY:import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY})
 let client:Promise<SupabaseClient>|undefined
-/** Lazy, optional foundation only. No sign-in, session persistence, sync or local-deck access. */
+/** Optional client. Auth storage is separate from the device deck; no task/photo access or sync. */
 export async function getSupabaseClient():Promise<SupabaseClient|null>{
  if(supabaseConfiguration.status!=='configured')return null
  const {url,key}=supabaseConfiguration
  client??=import('@supabase/supabase-js').then(({createClient})=>createClient(url,key,{
-  auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
+  auth:{flowType:'pkce',persistSession:AUTH_PREVIEW,autoRefreshToken:AUTH_PREVIEW,detectSessionInUrl:false},
  })).catch(error=>{client=undefined;throw error})
  return client
 }

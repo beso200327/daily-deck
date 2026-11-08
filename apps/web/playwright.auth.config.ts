@@ -1,0 +1,3 @@
+import {defineConfig} from '@playwright/test'
+import base from './playwright.config'
+export default defineConfig({testDir:'tests/integration',testMatch:'auth.browser.spec.ts',fullyParallel:false,workers:2,reporter:'list',use:{...base.use,baseURL:'http://127.0.0.1:4176'},projects:base.projects,webServer:[{command:'VITE_SUPABASE_URL=https://auth-fixture.supabase.co VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_synthetic_auth_test_only npm run build -- --mode auth-test --outDir dist-auth-test && npm run preview -- --outDir dist-auth-test --port 4176 --strictPort',url:'http://127.0.0.1:4176',reuseExistingServer:!process.env.CI}]})

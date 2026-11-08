@@ -33,7 +33,13 @@ if __name__ == '__main__':
             time.sleep(.25)
         else:
             raise RuntimeError('Isolated PostgreSQL failed to become ready within 30 seconds')
-        files = ['tests/bootstrap.sql', *[str(p.relative_to(ROOT/'supabase')) for p in sorted((ROOT/'supabase/migrations').glob('*.sql'))], 'verify-foundation.sql', 'tests/isolation.sql']
+        files = ['tests/bootstrap.sql']
+        for migration in sorted((ROOT/'supabase/migrations').glob('*.sql')):
+            files.append(str(migration.relative_to(ROOT/'supabase')))
+            if migration.name.startswith('20261108000100_'):
+                files.extend(['verify-foundation.sql','tests/isolation.sql'])
+            if migration.name.startswith('20261108000200_'):
+                files.extend(['tests/auth-onboarding.sql','verify-auth.sql'])
         for file in files:
             print(f'Applying in isolated container: {file}', flush=True)
             run('exec',NAME,'psql','-X','--set','ON_ERROR_STOP=1','-U','postgres','-d','dailydeck_test','--file',f'/spec/{file}')

@@ -8,7 +8,7 @@ export default defineConfig(({mode,command})=>{
  // Fail closed before emitting browser assets if a privileged key is misconfigured.
  if(command==='build'&&configuration.status==='invalid')throw new Error(configuration.message)
  const connect=configuration.status==='configured'?`connect-src 'self' ${configuration.url}`:"connect-src 'self'"
- return {plugins:[{name:'daily-deck-supabase-csp',apply:'build',transformIndexHtml(){return[{tag:'meta',attrs:{'http-equiv':'Content-Security-Policy',content:connect},injectTo:'head-prepend'}]}},{
+ return {define:{__DAILY_DECK_AUTH_PREVIEW__:JSON.stringify(process.env.VERCEL_ENV==='preview'||mode==='auth-test')},plugins:[{name:'daily-deck-supabase-csp',apply:'build',transformIndexHtml(){return[{tag:'meta',attrs:{'http-equiv':'Content-Security-Policy',content:connect},injectTo:'head-prepend'}]}},{
   name:'daily-deck-offline-shell',
   generateBundle(_options,bundle) {
     const assets=Object.keys(bundle).filter(name=>!name.endsWith('.map'))
@@ -33,6 +33,8 @@ self.addEventListener('notificationclick',event=>{
 self.addEventListener('fetch',event=>{
  const request=event.request;
  if(request.method!=='GET'||new URL(request.url).origin!==self.location.origin)return;
+ // Auth callback URLs must reach the no-store response and never enter the shell cache.
+ if(new URL(request.url).pathname==='/auth/callback')return;
  if(request.mode==='navigate'){
   event.respondWith(caches.open(CACHE).then(async cache=>(await cache.match('/'))||fetch(request)));return;
  }

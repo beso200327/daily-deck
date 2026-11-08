@@ -13,7 +13,7 @@ export function SupabaseConnection(){
  }
  return <section aria-labelledby="supabase-heading" className="data-controls"><h3 id="supabase-heading">Supabase foundation</h3>
   <p>{supabaseConfiguration.status==='disabled'?'Not configured. Daily Deck works locally.':supabaseConfiguration.status==='invalid'?supabaseConfiguration.message:'Configured for a manual connectivity check only.'}</p>
-  <p>Accounts and sync are not enabled. Tasks, photos and history stay in this browser. The check only reads public service settings.</p>
+  <p>Cloud sync is not enabled. Tasks, photos and history stay in this browser. The check only reads public service settings.</p>
   <button type="button" className="secondary" disabled={checking||supabaseConfiguration.status!=='configured'} onClick={()=>void check()}>{checking?'Checking…':'Test Supabase connection'}</button>
   {message&&<p role="status">{message}</p>}
  </section>

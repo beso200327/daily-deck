@@ -7,3 +7,5 @@ playwright-report/
 dist-test/
 
 dist-supabase-test/
+
+dist-auth-test/

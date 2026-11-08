@@ -97,7 +97,7 @@ These checks do not replace compiling SwiftUI/WidgetKit with the iOS SDK. Before
 See `VALIDATION.md` for checks actually performed in the implementation environment and remaining native validation.
 
 
-Launch-readiness audit: [docs/launch-readiness.md](docs/launch-readiness.md) records bounded code/test evidence, owner decisions and unresolved release/legal checks. [Operations](docs/operations.md) includes real-device, privacy-report, recovery and reviewer steps. The native targets now package an explicit privacy baseline; Xcode archive/API/SDK verification remains required. Development legal drafts are not published policies. The current source is free and accountless; the owner's proposed subscription is not implemented.
+Launch-readiness audit: [docs/launch-readiness.md](docs/launch-readiness.md) records bounded code/test evidence, owner decisions and unresolved release/legal checks. [Operations](docs/operations.md) includes real-device, privacy-report, recovery and reviewer steps. The native targets now package an explicit privacy baseline; Xcode archive/API/SDK verification remains required. Development legal drafts are not published policies. The current core source is free and device-local, with optional Preview web authentication; the owner's proposed subscription is not implemented.
 
 ## Completion deadlines and native reminders
 
@@ -107,4 +107,4 @@ Notification diagnostics, platform limitations, exact foreground/background test
 
 ## Supabase foundation
 
-An optional Preview-only web client and versioned RLS/private-storage migration are prepared separately from the existing local app. No hosted database migration, registration, sync, local-data upload, payments or native integration is enabled. See [the Supabase foundation guide](supabase/README.md) for exact owner application steps and isolated validation.
+The owner has applied the original foundation to the intended test project. Optional Preview web authentication now supports email/password, configured Google/Apple, recovery and a trusted 16+ self-declaration gate. Existing local data is never uploaded or associated with an account; sync, payments and native authentication are not implemented. Apply only the new additive onboarding migration after review. See [the authentication setup and release boundaries](supabase/AUTH.md) and [foundation model guide](supabase/README.md). Approved legal documents, live provider/email checks and account lifecycle work remain required before release.
