@@ -10,7 +10,7 @@ function lockBackground(){
  }
  return()=>{if(--locks===0)restoreScroll()}
 }
-export function Modal({title,close,children,initialFocus='auto',restoreFocus=true}:{title:string;close:()=>void;children:ReactNode;initialFocus?:'auto'|'heading';restoreFocus?:boolean}){
+export function Modal({title,close,children,initialFocus='auto',restoreFocus=true,footer}:{title:string;close:()=>void;children:ReactNode;footer?:ReactNode;initialFocus?:'auto'|'heading';restoreFocus?:boolean}){
  const ref=useRef<HTMLDialogElement>(null),titleId=useId()
  useEffect(()=>{
   const dialog=ref.current!,previous=document.activeElement as HTMLElement|null,unlock=lockBackground()
@@ -43,5 +43,5 @@ export function Modal({title,close,children,initialFocus='auto',restoreFocus=tru
   visualViewport?.addEventListener('resize',schedule);visualViewport?.addEventListener('scroll',schedule);window.addEventListener('resize',schedule);dialog.addEventListener('focusin',schedule)
   return()=>{cancelAnimationFrame(frame);visualViewport?.removeEventListener('resize',schedule);visualViewport?.removeEventListener('scroll',schedule);window.removeEventListener('resize',schedule);dialog.removeEventListener('focusin',schedule);dialog.close();unlock();if(restoreFocus)previous?.focus({preventScroll:true});else [...document.querySelectorAll<HTMLDialogElement>('dialog[open]')].at(-1)?.querySelector<HTMLElement>('h2')?.focus({preventScroll:true})}
  },[])
- return <dialog ref={ref} aria-labelledby={titleId} onCancel={e=>{e.preventDefault();close()}} className="modal"><div className="modal-top"><h2 id={titleId} tabIndex={-1}>{title}</h2><button className="icon-button" aria-label="Close dialog" onClick={close}><X size={21} aria-hidden="true"/></button></div><div className="modal-content">{children}</div></dialog>
+ return <dialog ref={ref} aria-labelledby={titleId} onCancel={e=>{e.preventDefault();close()}} className={`modal${footer ? ' has-footer' : ''}`}><div className="modal-top"><h2 id={titleId} tabIndex={-1}>{title}</h2><button className="icon-button" aria-label="Close dialog" onClick={close}><X size={21} aria-hidden="true"/></button></div><div className="modal-content">{children}</div>{footer&&<div className="modal-footer">{footer}</div>}</dialog>
 }

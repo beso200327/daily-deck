@@ -90,3 +90,15 @@ html[data-modal-open=true] body,html[data-modal-open=true] .app-shell{min-inline
 /* The broad input display rule must not expose the native file control or its intrinsic filename width. */
 .modal input[type=file][hidden]{display:none}
 @media(max-width:700px){.main-content,.is-today .main-content{padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}}
+
+/* The task editor footer reserves space instead of overlaying scrollable fields. */
+.modal.has-footer .modal-content{padding-bottom:28px;scroll-padding-block:16px 28px;flex:1 1 auto}
+.modal-footer{flex:0 0 auto;min-width:0;padding:0 20px 16px;background:#fcf8ef;border-radius:0 0 24px 24px}
+.modal .modal-footer .form-actions{position:static;margin:0;padding:12px 0 0;bottom:auto}
+.modal .deadline-row input[type=time]{box-sizing:border-box;width:100%;max-width:100%;min-width:0;min-inline-size:0}
+.modal input[type=time]::-webkit-datetime-edit-fields-wrapper{min-width:0;padding:0}
+@media(max-width:700px){
+ .modal .deadline-row{grid-template-columns:minmax(0,1fr);gap:8px}
+ .modal .deadline-row .clear-deadline{justify-self:start;max-inline-size:100%;padding:8px 0;min-height:44px}
+ .modal-footer{padding:0 16px max(14px,env(safe-area-inset-bottom))}
+}

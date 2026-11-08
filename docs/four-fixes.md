@@ -53,7 +53,7 @@ The native queue remains bounded to 60 upcoming requests across 30 days. Reopen 
 
 ## Deadline control and overdue state
 
-There is one app-level **No deadline** clear action next to the native time input. It clears both time and reminder preference; Save persists that change and the native scheduler cancels the old request. Cancel preserves the original saved deadline. A separate readable selection line reflects the actual input state, so “No deadline selected” is never shown alongside a selected time. Empty controls disable the already-satisfied clear action.
+There is one app-level **No deadline** clear action next to the native time input. It clears both time and reminder preference; Save persists that change and the native scheduler cancels the old request. Cancel preserves the original saved deadline. A separate readable selection line reflects the actual input state, so “No deadline selected” is never shown alongside a selected time. The clear action appears only when a time is selected. On narrow screens it sits below the full-width input. The task/habit editor footer now reserves its own space outside the scroll body, so messages remain reachable above Save/Cancel. See the [form-footer follow-up and screenshots](evidence/form-footer/README.md).
 
 There is no app-owned Reset in the deadline UI. If a Reset/Clear control appears inside the browser/OS time-picker popover, it belongs to that platform and cannot be removed by app CSS. The supported native picker is retained. The image editor's Reset still resets a photo crop and is deliberately unchanged.
 
