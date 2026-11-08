@@ -183,6 +183,9 @@ struct CalmArtwork: View {
 
 final class ReminderPresenter: NSObject, UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        if notification.request.identifier == NotificationScheduler.testIdentifier && notification.request.content.userInfo["kind"] as? String == "system-test" {
+            completionHandler([.banner, .sound]); return
+        }
         do {
             let state = try DeckStore.shared().load()
             let valid = state.reminderJobs(now: Date(), includeElapsed: true).contains { abs($0.fireAt.timeIntervalSinceNow) < 60 && $0.identifier == notification.request.identifier && $0.fingerprint == notification.request.content.userInfo["fingerprint"] as? String }

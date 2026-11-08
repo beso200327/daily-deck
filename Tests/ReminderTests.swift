@@ -99,3 +99,16 @@ extension ReminderTests {
         XCTAssertEqual(s.occurrences.count, 3)
     }
 }
+extension ReminderTests {
+    func testNoDeadlineRemovesPlannedRequestWithoutChangingFinishedHistory() {
+        var s = fixture(); let job = s.reminderJobs(now: now, calendar: calendar)[0], order = s.pending(on: Day(now, calendar: calendar)).map(\.id)
+        var entry = s.entries[0]; entry.deadline = nil; entry.remind = false; s.save(entry, now: now, calendar: calendar)
+        XCTAssertNil(s.occurrences[0].deadline); XCTAssertFalse(s.occurrences[0].remind ?? false)
+        XCTAssertFalse(s.reminderJobs(now: now, calendar: calendar).contains { $0.identifier == job.identifier })
+        XCTAssertEqual(s.pending(on: Day(now, calendar: calendar)).map(\.id), order)
+        entry.deadline = LocalTime(hour: 14, minute: 0); entry.remind = true; s.save(entry, now: now, calendar: calendar)
+        s.act(.done, id: s.occurrences[0].id, now: now, calendar: calendar); let snapshot = s.occurrences[0]
+        entry.deadline = nil; entry.remind = false; s.save(entry, now: now, calendar: calendar)
+        XCTAssertEqual(s.occurrences[0], snapshot)
+    }
+}

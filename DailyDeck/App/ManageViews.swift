@@ -1,5 +1,6 @@
 import SwiftUI
 import DailyDeckCore
+import UserNotifications
 
 struct EntryEditor: View {
     @EnvironmentObject var model: DeckModel
@@ -147,6 +148,7 @@ struct WidgetHelp: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    NotificationSettings()
                     Text("One thing, at a glance.").font(.largeTitle.bold())
                     Text("1. Open Daily Deck once to prepare your deck.\n\n2. Touch and hold an empty area on your iPhone Home Screen.\n\n3. Tap Edit → Add Widget (or the + button), then search for Daily Deck.\n\n4. Choose the medium widget and tap Add Widget.")
                     Text("Tap Done to complete the visible card, or Later to move it to the end. These buttons require iOS 17 or later. Widgets support taps, not swipe gestures.")
@@ -164,5 +166,42 @@ extension Calendar {
         var calendar = Calendar.current
         calendar.locale = Locale(identifier: "en_US")
         return calendar
+    }
+}
+
+/// Kept in the existing Help sheet; this never prompts on launch or sheet open.
+struct NotificationSettings: View {
+    @EnvironmentObject private var model: DeckModel
+    @Environment(\.scenePhase) private var phase
+    @State private var permission = "Checking…"
+    @State private var message = ""
+    @State private var busy = false
+    @State private var purpose = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Notifications").font(.headline)
+            Text("Local notifications can remind you 30 minutes before a pending deadline, even while the app is closed. iOS controls banners and sounds.").font(.subheadline)
+            Text("Permission status: " + permission).font(.subheadline)
+            Button("Enable notifications") { purpose = true }.disabled(busy)
+            Button(busy ? "Sending…" : "Send test notification") {
+                guard !busy else { return }; busy = true
+                Task {
+                    do { try await NotificationScheduler.sendTest(); message = "Test scheduled with iOS for 8 seconds from now. Stay here for a foreground test, or lock your phone for a background test. Check Notification Center if Focus suppresses the banner. This tests delivery, not a deadline reminder." }
+                    catch { message = error.localizedDescription }
+                    permission = await NotificationScheduler.permissionStatus(); busy = false
+                }
+            }.disabled(busy)
+            if !message.isEmpty { Text(message).font(.caption).foregroundStyle(Color.muted).accessibilityAddTraits(.updatesFrequently) }
+            Text("To test an actual reminder separately: before 13:30, save a pending task with Complete by 14:00 and Remind me 30 minutes before enabled. Confirm it says scheduled for 13:30. Later keeps it; Done, Skip, deletion or No deadline cancels it.").font(.caption).foregroundStyle(Color.muted)
+        }
+        .task { permission = await NotificationScheduler.permissionStatus() }
+        .onChange(of: phase) { _, next in if next == .active { Task { permission = await NotificationScheduler.permissionStatus() } } }
+        .confirmationDialog("Enable notifications?", isPresented: $purpose, titleVisibility: .visible) {
+            Button("Continue") {
+                guard !busy else { return }; busy = true
+                Task { message = await model.requestReminders(); permission = await NotificationScheduler.permissionStatus(); model.update(); busy = false }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("Daily Deck uses local notifications for pending deadlines and an optional system test. Permission is optional and does not block saving tasks.") }
     }
 }

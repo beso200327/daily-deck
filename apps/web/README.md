@@ -153,3 +153,5 @@ Today totals and the completion bar live in the existing Progress summary. Widge
 Use **Complete by** or **No deadline** in task/habit forms. Old estimates do not become times. Cards and lists show the deadline in your local time format; overdue stays pending. Deadline/reminder edits apply to unfinished occurrences from today onward, preserving past/finished snapshots and order. One-time deadlines remain on their original scheduled date.
 
 **Web/PWA reminders are not scheduled.** The 30-minute checkbox saves a preference only; there is no configured Web Push backend. No notification permission is requested, and a browser timer is not used to pretend closed-app delivery works. The native app includes local-notification scheduling source, but web/native data do not sync. See [platform setup, policies and verification limits](../../docs/deadlines-reminders.md).
+
+Notification diagnostics, platform limitations, exact foreground/background testing steps and mobile evidence: [four scoped fixes](../../docs/four-fixes.md).

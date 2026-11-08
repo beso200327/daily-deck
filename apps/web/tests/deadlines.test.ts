@@ -13,3 +13,10 @@ it('no advance reminder remains after 13:30, and overdue does not close a card',
 it('DST gap, fold and midnight use civil date plus time without converting duration',()=>{expect(deadlineDate('2026-03-08','02:30')?.toISOString()).toBe('2026-03-08T07:30:00.000Z');expect(deadlineDate('2026-11-01','01:30')?.toISOString()).toBe('2026-11-01T05:30:00.000Z');expect(reminderTime({day,deadline:'00:15'})?.toISOString()).toBe('2026-11-05T04:45:00.000Z');expect(deadlineDate(day,'25:00')).toBeUndefined()})
 it('invalid deadline metadata is rejected without resetting data',()=>{const d=fixture();d.tasks.at(-1)!.deadline='99:00';expect(()=>D.decode(JSON.stringify(d))).toThrow('deadline metadata')})
 it('deadline backups retain preferences and revisions idempotently',()=>{const d=fixture(),copy=validateBackupDeck(d);expect(copy.tasks.at(-1)?.deadlineVersions?.[0].deadline).toBe('14:00');expect(mergeBackup(d,copy)).toEqual(d)})
+it('No deadline clears pending metadata without disturbing finished snapshots or order',()=>{
+ const d=fixture(),id=d.tasks.at(-1)!.id,c=D.pending(d,day)[0],order=D.pending(d,day).map(c=>c.id)
+ D.saveTask(d,{...d.tasks.at(-1)!,deadline:undefined,remind:false},day)
+ expect(c.deadline).toBeUndefined();expect(c.remind).toBe(false);expect(reminderTime(c)).toBeUndefined();expect(overdue(c,new Date('2026-11-06T12:00:00Z'))).toBe(false);expect(D.pending(d,day).map(c=>c.id)).toEqual(order)
+ D.saveTask(d,{...d.tasks.find(t=>t.id===id)!,deadline:'14:00',remind:true},day);D.act(d,c.id,'done',now);const snapshot=structuredClone(c)
+ D.saveTask(d,{...d.tasks.find(t=>t.id===id)!,deadline:undefined,remind:false},day);expect(c).toEqual(snapshot)
+})

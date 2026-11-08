@@ -102,3 +102,5 @@ Launch-readiness audit: [docs/launch-readiness.md](docs/launch-readiness.md) rec
 ## Completion deadlines and native reminders
 
 Task/habit forms now use optional **Complete by** times and **No deadline**, rather than estimates. Legacy durations are retained as old metadata and never converted. The native notification planner schedules 30-minute advance local reminders only with explicit user authorization, reconciles lifecycle/edit/widget actions, and cancels closed occurrences. Native scheduling status is separate from successful deadline persistence. The bounded queue (60 requests over 30 days) requires reopening to extend; while closed after travel, queued instants use the last planned timezone. See [deadline/reminder implementation and mandatory real-device checklist](docs/deadlines-reminders.md). Web/PWA background reminders remain unavailable without the documented Web Push/backend setup. No paid service or backend was added.
+
+Notification diagnostics, platform limitations, exact foreground/background testing steps and mobile evidence: [four scoped fixes](docs/four-fixes.md).

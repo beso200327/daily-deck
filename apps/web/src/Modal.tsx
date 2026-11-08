@@ -4,9 +4,9 @@ let locks=0
 let restoreScroll=()=>{}
 function lockBackground(){
  if(locks++===0){const y=window.scrollY,body=document.body,root=document.documentElement
-  const old={position:body.style.position,top:body.style.top,left:body.style.left,right:body.style.right,overflow:root.style.overflow}
-  body.style.position='fixed';body.style.top=`-${y}px`;body.style.left='0';body.style.right='0';root.style.overflow='hidden'
-  restoreScroll=()=>{Object.assign(body.style,{position:old.position,top:old.top,left:old.left,right:old.right});root.style.overflow=old.overflow;window.scrollTo({top:y,left:0,behavior:'instant'})}
+  const old={position:body.style.position,top:body.style.top,left:body.style.left,right:body.style.right,overflow:root.style.overflow,width:body.style.width,modal:root.dataset.modalOpen}
+  root.dataset.modalOpen='true';body.style.width='100%';body.style.position='fixed';body.style.top=`-${y}px`;body.style.left='0';body.style.right='0';root.style.overflow='hidden'
+  restoreScroll=()=>{Object.assign(body.style,{position:old.position,top:old.top,left:old.left,right:old.right,width:old.width});root.style.overflow=old.overflow;if(old.modal===undefined)delete root.dataset.modalOpen;else root.dataset.modalOpen=old.modal;window.scrollTo({top:y,left:0,behavior:'instant'})}
  }
  return()=>{if(--locks===0)restoreScroll()}
 }
@@ -17,7 +17,10 @@ export function Modal({title,close,children,initialFocus='auto',restoreFocus=tru
   const content=dialog.querySelector<HTMLElement>('.modal-content')!
   let frame=0
   function fit(){
-   const vv=window.visualViewport,w=vv?.width??innerWidth,h=vv?.height??innerHeight,left=vv?.offsetLeft??0,top=vv?.offsetTop??0
+   const vv=window.visualViewport,zoomed=(vv?.scale??1)>1.05
+   // Keyboard shrinks the visual viewport. Pinch zoom must magnify the existing
+   // layout instead of moving/shrinking the entire dialog along with each pan.
+   const w=zoomed?document.documentElement.clientWidth:Math.min(vv?.width??innerWidth,document.documentElement.clientWidth),h=zoomed?innerHeight:vv?.height??innerHeight,left=0,top=zoomed?0:vv?.offsetTop??0
    const css=getComputedStyle(dialog),safeTop=Math.max(10,parseFloat(css.getPropertyValue('--safe-top'))||0),safeBottom=Math.max(10,parseFloat(css.getPropertyValue('--safe-bottom'))||0)
    const width=Math.min(490,Math.max(0,w-20))
    Object.assign(dialog.style,{left:`${left+(w-width)/2}px`,top:`${top+safeTop}px`,width:`${width}px`,maxHeight:`${Math.max(100,h-safeTop-safeBottom)}px`})
@@ -30,7 +33,7 @@ export function Modal({title,close,children,initialFocus='auto',restoreFocus=tru
     if(a.bottom>bottom)content.scrollTop+=a.bottom-bottom
     else if(a.top<r.top+8)content.scrollTop-=r.top+8-a.top
    }
-   content.scrollLeft=0
+   if(!zoomed)content.scrollLeft=0
   }
   const schedule=()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(fit)}
   dialog.showModal();fit()

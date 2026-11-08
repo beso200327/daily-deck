@@ -63,3 +63,30 @@ html{scrollbar-gutter:stable}.modal{position:fixed;inset:auto;margin:0;min-width
 .header-actions{position:relative;z-index:25}.header-actions .today-menu{position:static}.today-menu-items{top:calc(100% + 8px)}.today-menu-items button{font-size:1rem}
 @media(max-width:700px){html:has(.app-shell.is-today){scrollbar-gutter:auto}}
 .deadline-label{display:inline-flex;font-size:.8rem;line-height:1.4;color:#586533;gap:4px}.deadline-label.is-overdue{color:#963f2b;font-weight:600}.card-meta>.deadline-label{background:#eee9dc;padding:6px 10px;border-radius:18px}.modal .reminder-choice{display:flex;align-items:center;gap:10px;line-height:1.5}.modal .reminder-choice input{width:22px;min-width:22px;height:22px;margin:0;accent-color:#64763b}.modal .reminder-status{font-size:13px;color:var(--muted)}.queue-copy .deadline-label{font-size:10px}.history-row>.deadline-label{max-width:100px;flex-shrink:1}
+
+/* Form constraints: shrink actual controls and text, rather than clipping their contents. */
+html[data-modal-open=true]{overscroll-behavior-x:none}
+html[data-modal-open=true] body,html[data-modal-open=true] .app-shell{min-inline-size:0;max-inline-size:100%}
+.modal-content{touch-action:pan-y pinch-zoom;overscroll-behavior-x:none}
+.modal-content form>*{min-inline-size:0;max-inline-size:100%}
+.modal label{min-inline-size:0;max-inline-size:100%;overflow-wrap:anywhere}
+.modal .deadline-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;min-inline-size:0}
+.modal .deadline-row label{margin:0}.modal .deadline-row input{margin:0;min-inline-size:0;inline-size:100%;min-block-size:50px}
+.modal input[type=time]::-webkit-date-and-time-value{min-inline-size:0;text-align:start}
+.modal input[type=time]::-webkit-datetime-edit{min-inline-size:0;padding:0}
+.modal .deadline-row button{white-space:normal;max-inline-size:100px;padding:6px}
+.modal .deadline-selection{font-size:13px;margin:8px 0;color:var(--muted)}
+.modal .reminder-choice{font-weight:500}.modal .reminder-choice input{flex:0 0 22px}
+.modal .photo-actions>*{min-inline-size:0;overflow-wrap:anywhere}
+.notification-settings{padding-block:12px 18px;border-bottom:1px solid var(--line)}
+.notification-settings .photo-actions{gap:8px}.notification-settings button{max-inline-size:100%;white-space:normal;min-inline-size:0}
+@media(max-width:700px){
+ .page-header{position:relative;align-items:flex-start;min-width:0;padding-right:104px;min-height:44px}
+ .page-header>div:first-child{min-width:0;width:100%;overflow-wrap:anywhere}
+ .page-header .header-actions{position:absolute;right:0;top:0;display:flex;align-items:center;gap:8px}
+ .page-header .add-task,.is-today .page-header .add-task,.page-header .today-menu summary{width:44px;height:44px;min-width:44px;min-height:44px;margin:0;padding:0;flex:0 0 44px}
+ .page-header .subtitle{overflow-wrap:anywhere}
+}
+/* The broad input display rule must not expose the native file control or its intrinsic filename width. */
+.modal input[type=file][hidden]{display:none}
+@media(max-width:700px){.main-content,.is-today .main-content{padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}}

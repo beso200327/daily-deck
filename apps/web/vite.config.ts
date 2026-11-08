@@ -19,6 +19,11 @@ self.addEventListener('activate',event=>event.waitUntil((async()=>{
  await Promise.all(previous.slice(0,-1).map(key=>caches.delete(key)));
  await self.clients.claim();
 })()));
+self.addEventListener('notificationclick',event=>{
+ if(event.notification.data?.kind!=='test')return;
+ event.notification.close();
+ event.waitUntil((async()=>{const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});const existing=windows.find(client=>new URL(client.url).origin===self.location.origin);if(existing)await existing.focus();else await self.clients.openWindow('/');})());
+});
 self.addEventListener('fetch',event=>{
  const request=event.request;
  if(request.method!=='GET'||new URL(request.url).origin!==self.location.origin)return;

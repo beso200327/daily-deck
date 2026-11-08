@@ -15,6 +15,32 @@ public actor NotificationScheduler {
     public static func requestPermission() async throws -> Bool {
         try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
     }
+    public static let testIdentifier = "dailydeck.system-test"
+    public static func permissionStatus() async -> String {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        switch settings.authorizationStatus {
+        case .notDetermined: return "Not requested"
+        case .denied: return "Blocked — enable in iPhone Settings → Notifications → Daily Deck"
+        case .authorized: return "Granted"
+        case .provisional: return "Quiet delivery allowed"
+        default: return "Unavailable"
+        }
+    }
+    /// A real OS-scheduled test, deliberately independent of deadline scheduling.
+    /// No permission request occurs here; only the explicit Enable action prompts.
+    public static func sendTest() async throws {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        guard [.authorized, .provisional].contains(settings.authorizationStatus) else {
+            throw NSError(domain: "DailyDeck.Notifications", code: 1, userInfo: [NSLocalizedDescriptionKey: "Enable notifications first. If blocked, allow Daily Deck in iPhone notification settings."])
+        }
+        let content = UNMutableNotificationContent()
+        content.title = "Daily Deck — test notification"
+        content.body = "This is a system notification test, separate from your deadline reminders."
+        content.sound = .default
+        content.userInfo = ["kind": "system-test"]
+        try await center.add(UNNotificationRequest(identifier: testIdentifier, content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: 8, repeats: false)))
+    }
     public static func cancelChanges(before: DeckState, after: DeckState, now: Date = Date()) {
         let jobs = Dictionary(uniqueKeysWithValues: after.reminderJobs(now: now, includeElapsed: true).map { ($0.identifier, $0) })
         let ids = before.reminderJobs(now: now, includeElapsed: true).filter { jobs[$0.identifier]?.fingerprint != $0.fingerprint }.map(\.identifier)
