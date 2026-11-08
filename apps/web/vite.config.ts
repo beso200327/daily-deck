@@ -1,8 +1,14 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
+import {readSupabaseConfiguration} from './src/supabase-config'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 // Every production build gets an immutable shell cache. New workers wait for explicit consent.
-export default defineConfig({plugins:[{
+export default defineConfig(({mode,command})=>{
+ const configuration=readSupabaseConfiguration(loadEnv(mode,process.cwd(),'VITE_SUPABASE_'))
+ // Fail closed before emitting browser assets if a privileged key is misconfigured.
+ if(command==='build'&&configuration.status==='invalid')throw new Error(configuration.message)
+ const connect=configuration.status==='configured'?`connect-src 'self' ${configuration.url}`:"connect-src 'self'"
+ return {plugins:[{name:'daily-deck-supabase-csp',apply:'build',transformIndexHtml(){return[{tag:'meta',attrs:{'http-equiv':'Content-Security-Policy',content:connect},injectTo:'head-prepend'}]}},{
   name:'daily-deck-offline-shell',
   generateBundle(_options,bundle) {
     const assets=Object.keys(bundle).filter(name=>!name.endsWith('.map'))
@@ -35,4 +41,5 @@ self.addEventListener('fetch',event=>{
 });
 `})
   }
-}]})
+}]}
+})

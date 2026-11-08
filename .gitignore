@@ -6,3 +6,9 @@ xcuserdata/
 *.xcuserstate
 
 __pycache__/
+
+# Local configuration/credentials; only empty templates are versioned.
+.env
+.env.*
+!.env.example
+supabase/.temp/

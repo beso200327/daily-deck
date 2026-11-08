@@ -5,3 +5,8 @@ test-results
 playwright-report
 tests
 *.tsbuildinfo
+
+.env
+.env.*
+
+dist-supabase-test/

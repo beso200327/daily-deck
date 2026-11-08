@@ -155,3 +155,11 @@ Use **Complete by** or **No deadline** in task/habit forms. Old estimates do not
 **Web/PWA reminders are not scheduled.** The 30-minute checkbox saves a preference only; there is no configured Web Push backend. No notification permission is requested, and a browser timer is not used to pretend closed-app delivery works. The native app includes local-notification scheduling source, but web/native data do not sync. See [platform setup, policies and verification limits](../../docs/deadlines-reminders.md).
 
 Notification diagnostics, platform limitations, exact foreground/background testing steps and mobile evidence: [four scoped fixes](../../docs/four-fixes.md).
+
+## Optional Supabase foundation (Preview only)
+
+The app remains local-only: no registration, synchronization, local-data import, payments or native integration is enabled. The optional browser client uses exactly `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`; both may be absent. Copy `.env.example` to ignored `.env.local` only when configuring local connectivity. Use only an HTTPS project origin and an `sb_publishable_` public key, never a secret/service_role key. The owner-managed Vercel values stay Preview-only; changed values need a new Preview build.
+
+Help & settings → Supabase foundation has an explicit public Auth-settings connectivity check. It sends no local tasks, photos, history, cookies or session token, and does not prove database/Storage readiness. No Supabase request runs on launch or opening Help. Build-time validation rejects privileged-shaped keys before emitting browser assets. A generated exact-project meta CSP supplements the Vercel HTTP policy; unconfigured builds remain restricted to same-origin connections.
+
+See [the foundation guide](../../supabase/README.md) for the exact migration file, permissions, private-photo model, isolated SQL tests, manual application steps and remaining managed-service checks. **No hosted migration or upload has been performed.** Existing import settings and local-only Production behavior do not require Supabase environment variables.
