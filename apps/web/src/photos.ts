@@ -1,23 +1,26 @@
 import {storageSuffix} from './environment'
 import {cropRect,clampCrop,defaultCrop,type Crop} from './crop'
 const DB=`daily-deck-images${storageSuffix}`
+let accountScope=''
+export const photoScope=()=>accountScope
+export function setPhotoScope(owner?:string){accountScope=owner?`.account-${owner}`:''}
 const STORE='photos'
 const EDITS='edits'
 export type PhotoEdit = {source:Blob;width:number;height:number;crop:Crop}
 export type EditedPhoto = PhotoEdit & {rendered:Blob}
-function open():Promise<IDBDatabase> {
+function open(scope=accountScope):Promise<IDBDatabase> {
  return new Promise((resolve,reject)=>{
   if(!globalThis.indexedDB){reject(new Error('Photo storage is unavailable. You can still use an icon.'));return}
   let settled=false
-  const request=indexedDB.open(DB,2)
+  const request=indexedDB.open(DB+scope,2)
   request.onupgradeneeded=()=>{for(const name of [STORE,EDITS])if(!request.result.objectStoreNames.contains(name))request.result.createObjectStore(name)}
   request.onerror=()=>{settled=true;reject(new Error('Could not open photo storage. Check site storage permissions.'))}
   request.onblocked=()=>{settled=true;reject(new Error('Photo storage is blocked. Close older Daily Deck tabs and try again.'))}
   request.onsuccess=()=>{const db=request.result;db.onversionchange=()=>db.close();if(settled)db.close();else{settled=true;resolve(db)}}
  })
 }
-async function transact<T>(stores:string[],mode:IDBTransactionMode,operation:(tx:IDBTransaction)=>()=>T):Promise<T> {
- const db=await open()
+async function transact<T>(stores:string[],mode:IDBTransactionMode,operation:(tx:IDBTransaction)=>()=>T,scope=accountScope):Promise<T> {
+ const db=await open(scope)
  return new Promise((resolve,reject)=>{
   let tx:IDBTransaction
   try{tx=db.transaction(stores,mode)}catch{db.close();reject(new Error('Photo storage is unavailable. Please try again.'));return}
@@ -28,13 +31,13 @@ async function transact<T>(stores:string[],mode:IDBTransactionMode,operation:(tx
  })
 }
 export const putPhoto=(id:string,blob:Blob)=>transact([STORE],'readwrite',tx=>{tx.objectStore(STORE).put(blob,id);return()=>undefined})
-export const getPhoto=(id:string):Promise<Blob|undefined>=>transact([STORE],'readonly',tx=>{const r=tx.objectStore(STORE).get(id);return()=>r.result})
-export const deletePhoto=(id:string)=>transact([STORE,EDITS],'readwrite',tx=>{tx.objectStore(STORE).delete(id);tx.objectStore(EDITS).delete(id);return()=>undefined})
-export const putEditedPhoto=(id:string,photo:EditedPhoto)=>transact([STORE,EDITS],'readwrite',tx=>{
+export const getPhoto=(id:string,scope=accountScope):Promise<Blob|undefined>=>transact([STORE],'readonly',tx=>{const r=tx.objectStore(STORE).get(id);return()=>r.result},scope)
+export const deletePhoto=(id:string,scope=accountScope)=>transact([STORE,EDITS],'readwrite',tx=>{tx.objectStore(STORE).delete(id);tx.objectStore(EDITS).delete(id);return()=>undefined},scope)
+export const putEditedPhoto=(id:string,photo:EditedPhoto,scope=accountScope)=>transact([STORE,EDITS],'readwrite',tx=>{
  tx.objectStore(STORE).put(photo.rendered,id)
  tx.objectStore(EDITS).put({source:photo.source,width:photo.width,height:photo.height,crop:photo.crop},id)
  return()=>undefined
-})
+},scope)
 // Prefer bitmap/offscreen processing; retain a canvas fallback for older browsers.
 function raster(width:number,height:number):HTMLCanvasElement|OffscreenCanvas {
  if(typeof OffscreenCanvas!=='undefined')return new OffscreenCanvas(width,height)
@@ -64,11 +67,11 @@ export async function preparePhoto(file:File):Promise<PhotoEdit> {
  if(!source)throw new Error('This photo could not be prepared. Choose another photo.')
  return {source,width,height,crop:{...defaultCrop}}
 }
-export async function getPhotoEdit(id:string):Promise<PhotoEdit> {
- const stored=await transact<PhotoEdit|undefined>([EDITS],'readonly',tx=>{const r=tx.objectStore(EDITS).get(id);return()=>r.result})
+export async function getPhotoEdit(id:string,scope=accountScope):Promise<PhotoEdit> {
+ const stored=await transact<PhotoEdit|undefined>([EDITS],'readonly',tx=>{const r=tx.objectStore(EDITS).get(id);return()=>r.result},scope)
  if(stored)return stored
  // Version-one photos are still valid blobs. Their available pixels become the editing source.
- const source=await getPhoto(id)
+ const source=await getPhoto(id,scope)
  if(!source)throw new Error('This saved photo is unavailable. Choose a replacement; your other task details are safe.')
  const image=await imageFrom(source)
  return {source,width:image.naturalWidth,height:image.naturalHeight,crop:{...defaultCrop}}
@@ -95,11 +98,13 @@ export async function renderPhoto(photo:PhotoEdit):Promise<EditedPhoto> {
 export async function compressPhoto(file:File):Promise<Blob>{return (await renderPhoto(await preparePhoto(file))).rendered}
 
 export type StoredPhoto={id:string;rendered:Blob;edit?:PhotoEdit}
-export const listPhotos=()=>transact<StoredPhoto[]>([STORE,EDITS],'readonly',tx=>{
+export const listPhotos=(scope=accountScope)=>transact<StoredPhoto[]>([STORE,EDITS],'readonly',tx=>{
  const keys=tx.objectStore(STORE).getAllKeys(),photos=tx.objectStore(STORE).getAll(),edits=tx.objectStore(EDITS).getAll(),editKeys=tx.objectStore(EDITS).getAllKeys()
  return()=>keys.result.map((id,i)=>({id:String(id),rendered:photos.result[i],edit:edits.result[editKeys.result.indexOf(id)]}))
-})
-export const addPhotos=(photos:StoredPhoto[])=>transact([STORE,EDITS],'readwrite',tx=>{
+},scope)
+export const addPhotos=(photos:StoredPhoto[],scope=accountScope)=>transact([STORE,EDITS],'readwrite',tx=>{
  for(const photo of photos){tx.objectStore(STORE).add(photo.rendered,photo.id);if(photo.edit)tx.objectStore(EDITS).add(photo.edit,photo.id)}return()=>undefined
-})
+},scope)
 export const clearPhotos=()=>transact([STORE,EDITS],'readwrite',tx=>{tx.objectStore(STORE).clear();tx.objectStore(EDITS).clear();return()=>undefined})
+
+export async function photoDimensions(blob:Blob){const image=await imageFrom(blob);return{width:image.naturalWidth,height:image.naturalHeight}}

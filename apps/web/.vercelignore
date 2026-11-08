@@ -12,3 +12,5 @@ tests
 dist-supabase-test/
 
 dist-auth-test/
+
+dist-cloud-test/

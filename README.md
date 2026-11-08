@@ -2,7 +2,7 @@
 
 Browser version: see [apps/web/README.md](apps/web/README.md#manual-vercel-import-from-github) for the separate React app, browser tests, and exact manual Vercel import settings (`main`, root `apps/web`, Vite, `npm ci`, `npm run build`, output `dist`, no environment variables). The native iPhone app instructions follow below.
 
-**One thing at a time.** A local-first iPhone app for tasks and recurring habits, built with SwiftUI and a real WidgetKit extension. iOS 17+; no account, backend, network requests, analytics, subscriptions, or ads.
+**One thing at a time.** A local-first iPhone app for tasks and recurring habits, built with SwiftUI and a real WidgetKit extension. The native iOS 17+ app has no account, backend, analytics, subscriptions or ads. The separate web app has optional Preview authentication and opt-in account cloud storage; native data does not sync.
 
 The interface follows the supplied concept: warm ivory, charcoal, lime completion, soft peach postponement, layered rounded cards, generous spacing, and quiet native walking/leaf artwork. UI copy is English. It uses Dynamic Type, VoiceOver actions and labels, visible status text, and large controls. Swipe rotation respects Reduce Motion; there are no automatic animations.
 
@@ -107,4 +107,8 @@ Notification diagnostics, platform limitations, exact foreground/background test
 
 ## Supabase foundation
 
-The owner has applied the original foundation to the intended test project. Optional Preview web authentication now supports email/password, configured Google/Apple, recovery and a trusted 16+ self-declaration gate. Existing local data is never uploaded or associated with an account; sync, payments and native authentication are not implemented. Apply only the new additive onboarding migration after review. See [the authentication setup and release boundaries](supabase/AUTH.md) and [foundation model guide](supabase/README.md). Approved legal documents, live provider/email checks and account lifecycle work remain required before release.
+The owner has applied the original foundation to the intended test project. Optional Preview web authentication now supports email/password, configured Google/Apple, recovery and a trusted 16+ self-declaration gate. The original local deck is never uploaded at login. Optional web cloud storage now uses explicit opt-in/import confirmation, account-scoped caches, trusted transactional writes and private photos. Payments and native authentication/sync remain unimplemented. The owner has applied the foundation and onboarding migrations; do not rerun them. See [the authentication setup and release boundaries](supabase/AUTH.md) and [foundation model guide](supabase/README.md). Approved legal documents, live provider/email checks and account lifecycle work remain required before release.
+
+## Optional web cloud deck (Preview only)
+
+Use Account to keep the original local deck, explicitly import it with a recoverable backup, or open existing cloud data without importing. New cloud changes wait for server confirmation; stale revisions are rejected and unknown outcomes use idempotent retry. Offline cloud copies are read-only. Native iPhone/widget storage remains separate. See [the two new migrations, owner setup, isolation checks and recovery boundaries](supabase/CLOUD.md). No hosted migration or manual deployment was performed by this change.

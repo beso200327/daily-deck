@@ -1,17 +1,19 @@
-import { useLayoutEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { BookOpen, Droplets, Footprints, Leaf, CircleDot, Layers } from 'lucide-react'
 import type { Visual } from './deck'
-import { getPhoto } from './photos'
+import { getPhoto,photoScope } from './photos'
 export const visualIcons = {neutral: Layers, walk: Footprints, read: BookOpen, water: Droplets, focus: CircleDot, stretch: Leaf}
 export function TaskVisual({icon = 'neutral', photoId, draft, small = false}: {icon?: Visual; photoId?: string; draft?: Blob; small?: boolean}) {
   const [source, setSource] = useState<{key: string | Blob; url: string} | null>(null)
   const [failed, setFailed] = useState(false)
+  const [photoGeneration,setPhotoGeneration]=useState(0),scope=photoScope()
+  useEffect(()=>{const update=(event:Event)=>{const detail=(event as CustomEvent).detail;if(detail?.owner&&scope===`.account-${detail.owner}`&&detail.id===photoId)setPhotoGeneration(n=>n+1)};window.addEventListener('daily-deck-cloud-photos',update);return()=>window.removeEventListener('daily-deck-cloud-photos',update)},[photoId,scope])
   useLayoutEffect(() => {
     let cancelled = false; let url: string | undefined
     setFailed(false)
     async function read() {
       try {
-        const blob = draft ?? (photoId ? await getPhoto(photoId) : undefined)
+        const blob = draft ?? (photoId ? await getPhoto(photoId,scope) : undefined)
         if (cancelled || !blob) { if (!cancelled && photoId) setFailed(true); return }
         url = URL.createObjectURL(blob)
         setSource({key: draft ?? photoId!, url})
@@ -19,7 +21,7 @@ export function TaskVisual({icon = 'neutral', photoId, draft, small = false}: {i
     }
     void read()
     return () => { cancelled = true; if (url) URL.revokeObjectURL(url) }
-  }, [photoId, draft])
+  }, [photoId, draft,scope,photoGeneration])
   const url = source?.key === (draft ?? photoId) ? source?.url : undefined
   const Icon = visualIcons[icon]
   return <div className={`task-visual visual-${icon} ${small ? 'small' : ''}`} data-visual={draft || photoId ? 'photo' : icon}>

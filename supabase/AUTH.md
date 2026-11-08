@@ -1,6 +1,8 @@
 # Preview authentication — owner setup and release boundaries
 
-This branch adds web authentication only. The owner confirmed foundation migration **20261108000100** was already applied to the intended test project and the Preview public Auth check passed. Those owner checks do not prove authenticated isolation or Storage behavior. We did not apply hosted SQL, send email, register real users, configure providers, or change Production. The native app/widget are unchanged.
+**Owner update:** migrations `20261108000100` and `20261108000200` are already applied to the test project; email/recovery/onboarding/Google were owner-tested. Do not rerun either migration. Section 1 is historical setup for a fresh project. Optional web cloud storage is now implemented separately: follow [CLOUD.md](CLOUD.md) for only migrations 003/004, real-user isolation tests and recovery.
+
+This document records the authentication baseline. The owner confirmed foundation migration **20261108000100** was already applied to the intended test project and the Preview public Auth check passed. Those owner checks do not prove authenticated isolation or Storage behavior. We did not apply hosted SQL, send email, register real users, configure providers, or change Production. The native app/widget are unchanged.
 
 ## 1. Apply only the new migration
 
@@ -72,7 +74,7 @@ These are single-use bearer links: do not log/forward them; retain expiry/rate l
 
 Open **Help & settings → Account** (mobile: **More → Account**). Use only authorized test addresses/accounts. Test email signup, confirmation/resend after cooldown, wrong/unconfirmed sign-in, reload restoration, sign-out, forgot/reset in the requesting browser, expired/used links and canceled OAuth. Confirm server onboarding is mandatory for email and provider accounts, including a newly signed-in second user. Marketing must start unchecked. Check local tasks, photo crops and history before/after all flows: they must remain unchanged and never appear in network requests to data/storage APIs.
 
-Use two authorized real sessions to check actual PostgREST owner isolation and private Storage upload/download/signed URLs before any release. SQL Editor administrator SELECT is not an isolation test. The browser app in this task never writes cloud task/photo records. Account deletion/export and synchronization must be implemented separately, with reviewed server authorization and historical cleanup semantics.
+Use two authorized real sessions to check actual PostgREST owner isolation and private Storage upload/download/signed URLs before any release. SQL Editor administrator SELECT is not an isolation test. Signing in alone never writes cloud task/photo records. Explicit cloud opt-in/import now enables the separate transactional API described in CLOUD.md. Account deletion/export must still be implemented separately, with reviewed server authorization and historical cleanup semantics.
 
 ## Security and lifecycle limits
 
@@ -82,7 +84,7 @@ A short-lived sessionStorage marker contains only recovery UI user ID/expiry, no
 
 The device-local deck is deliberately shared by people using that browser, not partitioned or uploaded at login. Account switching does not create independent account copies. Local JSON backup is not cloud account export. Do not market this as account privacy isolation for a shared browser.
 
-Before public release: approved operator/support/privacy/terms documents and versioned acceptance, reviewed age requirements, authorized live SMTP/OAuth and real-user RLS/Storage checks, self-service account deletion, account-data export, secure sync/write APIs if planned, and separately implemented/tested native authentication. No launch-readiness or legal-compliance claim is made.
+Before public release: approved operator/support/privacy/terms documents and versioned acceptance, reviewed age requirements, authorized live SMTP/OAuth and real-user RLS/Storage checks, self-service account deletion, account-data export, live verification of the new sync/write APIs, and separately implemented/tested native authentication. No launch-readiness or legal-compliance claim is made.
 
 ## Reproduce bounded local checks
 

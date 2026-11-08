@@ -1,8 +1,8 @@
 import {createHash} from 'node:crypto'
-import type {Page} from '@playwright/test'
+import type {Page,Route} from '@playwright/test'
 export const third='33333333-3333-3333-3333-333333333333',fourth='44444444-4444-4444-4444-444444444444'
 export const service='https://auth-fixture.supabase.co',password='synthetic-password-only',first='11111111-1111-1111-1111-111111111111',second='22222222-2222-2222-2222-222222222222'
-export async function installAuth(page:Page){
+export async function installAuth(page:Page,extension?:(route:Route,owner:string|null)=>Promise<boolean>){
  const fixture={approved:new Set<string>(),google:true,apple:false,mode:'preview',confirmed:true,challenge:'',activeEmail:'authorized@example.test',signupCalls:0,resendCalls:0,recoverCalls:0,refreshCalls:0,resetCalls:0,tokenCalls:0,requests:[] as {path:string;method:string;body:any}[],holdSignin:null as null|Promise<void>}
  const users=new Map<string,any>(),passwords=new Map<string,string>()
  const makeUser=(email:string)=>{let u=users.get(email);if(!u){u={id:email==='second@example.test'?second:email==='authorized@example.test'?first:email.includes('privaterelay.appleid.com')?fourth:third,aud:'authenticated',role:'authenticated',email,app_metadata:{provider:'email',providers:['email']},user_metadata:{},email_confirmed_at:'2026-11-08T08:00:00Z',created_at:'2026-11-08T08:00:00Z',identities:[]};users.set(email,u);passwords.set(email,password)}return u}
@@ -11,11 +11,12 @@ export async function installAuth(page:Page){
  const session=(email:string,expired=false)=>{const user=makeUser(email);return{access_token:token(user,expired),refresh_token:'synthetic_refresh_'+user.id,expires_in:3600,expires_at:Math.floor(Date.now()/1000)+(expired?-100:3600),token_type:'bearer',user}}
  const subject=(request:import('@playwright/test').Request)=>{try{return JSON.parse(Buffer.from((request.headers().authorization??'').replace('Bearer ','').split('.')[1],'base64url').toString()).sub}catch{return null}}
  await page.route(service+'/**',async route=>{
-  const request=route.request(),url=new URL(request.url()),path=url.pathname,method=request.method(),body=request.postDataJSON()??{}
+  const request=route.request(),url=new URL(request.url()),path=url.pathname,method=request.method();let body:any={};try{body=request.postDataJSON()??{}}catch{/* Binary Storage fixture payload. */}
   const headers={'access-control-allow-origin':'*','access-control-allow-headers':request.headers()['access-control-request-headers']??'*','access-control-allow-methods':'GET,POST,PUT,DELETE,OPTIONS','content-type':'application/json','x-supabase-api-version':'2024-01-01','access-control-expose-headers':'x-supabase-api-version'}
   const send=(data:unknown,status=200)=>route.fulfill({status,headers,body:JSON.stringify(data)})
   if(method==='OPTIONS'){await route.fulfill({status:204,headers});return}
   fixture.requests.push({path,method,body})
+  if(extension&&await extension(route,subject(request)))return
   if(path==='/auth/v1/settings')return send({external:{google:fixture.google,apple:fixture.apple,email:true}})
   if(path==='/auth/v1/signup'){fixture.signupCalls++;makeUser(body.email);passwords.set(body.email,body.password);fixture.activeEmail=body.email;fixture.challenge=body.code_challenge;return send({...makeUser(body.email),email_confirmed_at:null})}
   if(path==='/auth/v1/resend'){fixture.resendCalls++;fixture.challenge=body.code_challenge??fixture.challenge;return send({})}

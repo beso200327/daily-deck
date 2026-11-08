@@ -1,6 +1,6 @@
 import {assertCapacity} from './limits'
 import * as D from './deck'
-import {addPhotos,deletePhoto,listPhotos,clearPhotos,type StoredPhoto} from './photos'
+import {photoScope,addPhotos,deletePhoto,listPhotos,clearPhotos,type StoredPhoto} from './photos'
 const LIMIT=64*1024*1024
 const FILE_LIMIT=96*1024*1024
 const fail=()=>new Error('This backup is invalid or unsupported. Your current deck has not been changed.')
@@ -20,9 +20,9 @@ export function validateBackupDeck(value:unknown):D.Deck {
 }
 async function encode(blob:Blob){const bytes=new Uint8Array(await blob.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=32768)binary+=String.fromCharCode(...bytes.subarray(i,i+32768));return {type:blob.type,data:btoa(binary)}}
 function decodeBlob(v:unknown):Blob {if(!plain(v)||!['image/jpeg','image/png','image/webp','image/avif'].includes(String(v.type))||typeof v.data!=='string'||!v.data.length||v.data.length>Math.ceil(LIMIT/3)*4||(v.data.length%4!==0||/[^A-Za-z0-9+/=]/.test(v.data)))throw fail();const b=atob(v.data);return new Blob([Uint8Array.from(b,c=>c.charCodeAt(0))],{type:String(v.type)})}
-export async function exportBackup(storage:Storage=localStorage):Promise<Blob> {
+export async function exportBackup(storage:Storage=localStorage,guest=false):Promise<Blob> {
  const raw=storage.getItem(D.STORAGE_KEY);if(raw===null)throw new Error('There is no saved deck to export yet.')
- const deck=validateBackupDeck(JSON.parse(raw)),photos=await listPhotos();if(photos.reduce((n,p)=>n+p.rendered.size+(p.edit?.source.size??0),0)>LIMIT)throw new Error('This photo library exceeds the 64 MB backup limit. No data was changed.')
+ const deck=validateBackupDeck(JSON.parse(raw)),photos=await (guest?listPhotos(''):listPhotos());if(photos.reduce((n,p)=>n+p.rendered.size+(p.edit?.source.size??0),0)>LIMIT)throw new Error('This photo library exceeds the 64 MB backup limit. No data was changed.')
  const refs=[...deck.tasks,...deck.cards,...deck.cards.flatMap(c=>c.appearances??[])].flatMap(c=>c.photoId?[c.photoId]:[]);if(refs.some(id=>!photos.some(p=>p.id===id)))throw new Error('Some saved photos are unavailable. No backup was exported and your current deck is unchanged.')
  const encoded=await Promise.all(photos.map(async p=>({id:p.id,rendered:await encode(p.rendered),...(p.edit?{edit:{...p.edit,source:await encode(p.edit.source)}}:{})})))
  const result=new Blob([JSON.stringify({format:'daily-deck-backup',version:1,exportedAt:new Date().toISOString(),deck,photos:encoded})],{type:'application/json'});if(result.size>FILE_LIMIT)throw new Error('This backup exceeds the 96 MB file limit. No data was changed.');return result
@@ -50,12 +50,13 @@ export function mergeBackup(current:D.Deck,incoming:D.Deck):D.Deck {
 }
 async function sameBlob(a:Blob,b:Blob){if(a.type!==b.type||a.size!==b.size)return false;const x=new Uint8Array(await a.arrayBuffer()),y=new Uint8Array(await b.arrayBuffer());return x.every((n,i)=>n===y[i])}
 export async function importBackup(backup:Awaited<ReturnType<typeof readBackup>>,storage:Storage=localStorage){
- const raw=storage.getItem(D.STORAGE_KEY),current=raw?validateBackupDeck(JSON.parse(raw)):{version:1 as const,tasks:[],cards:[]},merged=mergeBackup(current,backup.deck),existing=await listPhotos()
+ const scope=photoScope()
+ const raw=storage.getItem(D.STORAGE_KEY),current=raw?validateBackupDeck(JSON.parse(raw)):{version:1 as const,tasks:[],cards:[]},merged=mergeBackup(current,backup.deck),existing=await listPhotos(scope)
  assertCapacity(current,merged)
  const added:StoredPhoto[]=[]
  for(const photo of backup.photos){const old=existing.find(p=>p.id===photo.id);if(!old){added.push(photo);continue}if(!await sameBlob(old.rendered,photo.rendered)||stable(old.edit&&{...old.edit,source:undefined})!==stable(photo.edit&&{...photo.edit,source:undefined})||(old.edit&&photo.edit&&!await sameBlob(old.edit.source,photo.edit.source)))throw new Error('A saved photo conflicts with this backup. Nothing was imported.')}
- await addPhotos(added)
- try{D.persist(storage,merged)}catch{await Promise.all(added.map(p=>deletePhoto(p.id)));throw new Error('Could not save the imported deck. Existing data was preserved. Check available storage.')}
+ await addPhotos(added,scope)
+ try{D.persist(storage,merged)}catch{await Promise.all(added.map(p=>deletePhoto(p.id,scope)));throw new Error('Could not save the imported deck. Existing data was preserved. Check available storage.')}
  return merged
 }
 export async function deleteLocalData(storage:Storage=localStorage){

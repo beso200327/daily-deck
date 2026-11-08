@@ -11,7 +11,8 @@
     "test:e2e": "playwright test",
     "test:supabase": "playwright test -c playwright.supabase.config.ts",
     "test:supabase-build": "node scripts/verify-supabase-build.mjs",
-    "test:auth": "playwright test -c playwright.auth.config.ts"
+    "test:auth": "playwright test -c playwright.auth.config.ts",
+    "test:cloud": "playwright test -c playwright.cloud.config.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.119.0",

@@ -2,21 +2,23 @@ import {useEffect,useId,useRef,useState,useSyncExternalStore} from 'react'
 import {auth,type AuthState} from './auth-store'
 import type {AuthScreen} from './auth-policy'
 import {Modal} from './Modal'
+import {CloudControls,useCloud} from './CloudControls'
 export const useAuth=()=>useSyncExternalStore(auth.subscribe,auth.snapshot)
 const titles:Record<AuthScreen,string>={signin:'Welcome back',signup:'Create an account',confirmation:'Confirm your email',forgot:'Reset your password',reset:'Choose a new password',onboarding:'Before you continue',account:'Your account'}
 const labels:Partial<Record<AuthScreen,string>>={signin:'Sign in',signup:'Create account',confirmation:'Resend confirmation',forgot:'Send reset link',reset:'Save new password',onboarding:'Continue Preview'}
 export function AccountSection(){
  const state=useAuth()
  return <section className="data-controls" aria-labelledby="account-heading"><h3 id="account-heading">Account</h3>
-  {state.user?<><p>Signed in as <strong>{state.user.email??'your account'}</strong>.</p><p>{state.onboarding?.complete?'Preview account setup completed.':'Account setup is incomplete.'} Cloud sync is not available yet.</p></>:<p>{auth.enabled?'Sign in or create a Preview test account.':'Account testing is available only in the configured Preview.'}</p>}
-  <p>This browser’s local tasks, photos and history are not account data. Signing in or out never moves, uploads or clears them. Anyone using this browser can see its local deck.</p>
+  {state.user?<><p>Signed in as <strong>{state.user.email??'your account'}</strong>.</p><p>{state.onboarding?.complete?'Preview account setup completed.':'Account setup is incomplete.'} Cloud storage is optional; choose a deck below.</p></>:<p>{auth.enabled?'Sign in or create a Preview test account.':'Account testing is available only in the configured Preview.'}</p>}
+  <p>This browser’s original local tasks, photos and history are not account data. Signing in or out never moves, uploads or clears them. Anyone using this browser can see its local deck. Cloud import requires separate confirmation.</p>
   {auth.enabled&&<button type="button" className="secondary" onClick={()=>void auth.open()}>{state.user?'Manage account':'Sign in or create account'}</button>}
  </section>
 }
-export function AuthDialog(){const state=useAuth();return state.open?<AuthForm key={state.screen} state={state}/>:null}
+export function AuthDialog(){const state=useAuth();return state.open?<AuthForm key={`${state.screen}:${state.user?.id??'guest'}`} state={state}/>:null}
 function AuthForm({state}:{state:AuthState}){
  const id=useId(),[email,setEmail]=useState(state.pendingEmail),[password,setPassword]=useState(''),[confirm,setConfirm]=useState(''),[age,setAge]=useState(false),[preview,setPreview]=useState(false),[marketing,setMarketing]=useState(false)
  const {screen,busy}=state
+ const sync=useCloud()
  const feedback=useRef<HTMLDivElement>(null)
  useEffect(()=>{if(state.notice||state.error)feedback.current?.scrollIntoView({block:'nearest'})},[state.notice,state.error])
  const submit=(event:React.FormEvent)=>{
@@ -29,9 +31,9 @@ function AuthForm({state}:{state:AuthState}){
   else if(screen==='onboarding')void auth.onboard(age,preview,marketing)
  }
  const setupAvailable=state.onboarding?.mode==='preview'
- return <Modal title={titles[screen]} close={auth.close} initialFocus="heading" footer={<div className="form-actions auth-footer"><button type="button" className="secondary" disabled={busy} onClick={auth.close}>Continue in local mode</button>{auth.enabled&&screen==='account'?<button type="button" className="primary" disabled={busy} onClick={()=>void auth.signOut()}>{busy?'Signing out…':'Sign out'}</button>:auth.enabled&&<button type="submit" className="primary" form={id} disabled={busy||!state.ready||(screen==='onboarding'&&!setupAvailable)}>{busy?'Working…':labels[screen]}</button>}</div>}>
+ return <Modal title={titles[screen]} close={auth.close} initialFocus="heading" footer={<div className="form-actions auth-footer"><button type="button" className="secondary" disabled={busy} onClick={auth.close}>{sync.scope==='local'?'Continue in local mode':'Back to deck'}</button>{auth.enabled&&screen==='account'?<button type="button" className="primary" disabled={busy} onClick={()=>void auth.signOut()}>{busy?'Signing out…':'Sign out'}</button>:auth.enabled&&<button type="submit" className="primary" form={id} disabled={busy||!state.ready||(screen==='onboarding'&&!setupAvailable)}>{busy?'Working…':labels[screen]}</button>}</div>}>
   <div className="auth-notice"><strong>Preview testing only · ages 16+</strong><p>Approved terms and privacy documents are pending. This is not a public-release onboarding process.</p></div>
-  <p className="auth-local-note">Your device deck stays in this browser, separate from any account. Cloud synchronization is not available.</p>
+  <p className="auth-local-note">Your original device deck stays separate. Cloud storage starts only after an explicit choice and import confirmation.</p>
   {!auth.enabled?<p>Account testing is unavailable in this build. You can keep using the local deck.</p>:<form id={id} className="auth-form" onSubmit={submit}>
    <fieldset disabled={busy||!state.ready}>
    {['signin','signup','forgot','confirmation'].includes(screen)&&<label>Email<input name="email" type="email" autoComplete={screen==='signin'?'username':'email'} autoCapitalize="none" spellCheck={false} inputMode="email" required maxLength={254} value={email} onChange={e=>setEmail(e.target.value)}/></label>}
@@ -50,7 +52,7 @@ function AuthForm({state}:{state:AuthState}){
     </>}
     <div className="auth-links"><button type="button" className="text-button" onClick={()=>void auth.refresh()}>Retry account setup</button><button type="button" className="text-button" onClick={()=>void auth.signOut()}>Sign out instead</button></div>
    </>}
-   {screen==='account'&&<><p>Signed in as <strong>{state.user?.email}</strong>.</p><p>Age was self-declared, not verified. Preview setup does not mean that approved legal acceptance or public-release requirements are complete.</p><p>Your local deck is shared within this browser, not stored under this account. Different accounts do not get separate cloud copies of it.</p></>}
+   {screen==='account'&&<><p>Signed in as <strong>{state.user?.email}</strong>.</p><p>Age was self-declared, not verified. Preview setup does not mean that approved legal acceptance or public-release requirements are complete.</p><p>Your local deck is shared within this browser, not stored under this account. Different accounts do not get separate cloud copies of it.</p><CloudControls/></>}
    {['signin','signup'].includes(screen)&&<>
     <div className="auth-links"><button type="button" className="text-button" onClick={()=>void auth.open(screen==='signin'?'signup':'signin',email)}>{screen==='signin'?'Create an account instead':'Sign in instead'}</button>{screen==='signin'&&<><button type="button" className="text-button" onClick={()=>void auth.open('forgot',email)}>Forgot password?</button><button type="button" className="text-button" onClick={()=>void auth.open('confirmation',email)}>Resend confirmation</button></>}</div>
     {state.providers&&(state.providers.google||state.providers.apple)?<div className="auth-providers">

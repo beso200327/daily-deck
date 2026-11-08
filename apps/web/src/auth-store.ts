@@ -133,7 +133,7 @@ export class AuthStore{
   const subject=this.state.user.id
   const result=await this.api!.rpc('daily_deck_complete_preview_onboarding',{p_expected_user:subject,p_age_at_least_16:age,p_preview_acknowledged:preview,p_marketing_opt_in:marketing});if(result.error)throw new AuthProblem('Account setup could not be saved. Check your connection, or continue with the local deck.')
   const onboarding=status(result.data);if(!onboarding?.complete||onboarding.owner_id!==subject||this.state.user?.id!==subject)throw new AuthProblem('Account setup is not available yet. The local deck remains available.')
-  this.patch({onboarding,screen:'account',notice:'Preview account setup saved. Age was self-declared, not verified. Cloud sync is not available.'})
+  this.patch({onboarding,screen:'account',notice:'Preview account setup saved. Age was self-declared, not verified. Cloud storage is optional; choose a deck in Account.'})
  })
  refresh=()=>this.run(async()=>{const result=await this.api!.auth.getSession();if(result.error)throw result.error;this.token='';await this.adopt(result.data.session)})
  signOut=()=>this.run(async()=>{const result=await this.api!.auth.signOut({scope:'local'});if(result.error)throw result.error;await this.adopt(null);this.patch({pendingEmail:'',screen:'signin',notice:'Signed out of this browser. Its local tasks, photos and history are unchanged.'});void this.providers()})
