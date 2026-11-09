@@ -18,17 +18,11 @@ async function account(p: Page) {
       .isVisible()
   )
     return
-  if (
-    await p
-      .getByRole('button', { name: 'More actions', exact: true })
-      .isVisible()
-  ) {
-    await p.getByRole('button', { name: 'More actions', exact: true }).click()
-    await p.getByRole('button', { name: 'Account', exact: true }).click()
-  } else {
-    await openHelp(p)
-    await p.getByRole('button', { name: 'Manage account', exact: true }).click()
+  if(!await p.getByRole('dialog',{name:'Your deck, your pace.',exact:true}).isVisible()){
+    // Wait for the new source's controls instead of branching on a transient absence during account switching.
+    await p.getByRole('button',{name:'About your local deck',exact:false}).or(p.getByRole('button',{name:'More actions',exact:true})).click()
   }
+  await p.getByRole('button',{name:'Manage account',exact:true}).or(p.getByRole('button',{name:'Account',exact:true})).click()
   await expect(
     p.getByRole('dialog', { name: 'Your account', exact: true })
   ).toBeVisible()
@@ -674,4 +668,95 @@ test('expired cloud authorization keeps the original request for reauthenticatio
       '11111111-1111-1111-1111-111111111111'
     )
   ).toBe('1')
+})
+
+
+test('rejected cross-device save stays visible after queued/background refresh and preserves its draft',async({page,browser},info)=>{
+ const b=backend();await b.install(page);await ready(page);await openCloud(page);await create(page,'Original task')
+ const {p,c}=await secondPage(browser,b);await openCloud(p)
+ for(const target of [page,p])await target.getByRole('button',{name:'Edit current task',exact:true}).click()
+ await page.getByLabel('Title',{exact:true}).fill('computer edit')
+ await page.getByLabel('Notes').fill('Keep this rejected desktop draft')
+ await p.getByLabel('Title',{exact:true}).fill('phone edit')
+ let release!:()=>void;b.state.holdSaveTitle='computer edit';b.state.holdSave=new Promise<void>(r=>release=r)
+ const rejected=page.waitForResponse(r=>r.url().endsWith('/rpc/daily_deck_sync')&&r.request().postDataJSON()?.p_args?.task?.title==='computer edit')
+ await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await expect(page.getByRole('button',{name:'Saving…',exact:true})).toBeVisible()
+ await page.evaluate(()=>window.dispatchEvent(new Event('focus')))
+ await p.getByRole('button',{name:'Save task',exact:true}).click()
+ await expect(active(p).locator('h2')).toHaveText('phone edit')
+ release();b.state.holdSave=null
+ expect((await (await rejected).json()).code).toBe('40001')
+ const dialog=page.getByRole('dialog',{name:'Edit task',exact:true}),alert=dialog.getByRole('alert')
+ await expect(alert).toContainText('changed in another browser')
+ await expect(alert).toBeInViewport()
+ const viewport=page.viewportSize()!;await page.setViewportSize({width:320,height:400});await expect(alert).toBeInViewport();await expect(page.getByRole('button',{name:'Save task',exact:true})).toBeInViewport();await page.setViewportSize(viewport)
+ await expect(page.getByRole('button',{name:'Save task',exact:true})).toBeEnabled()
+ await expect(page.getByLabel('Title',{exact:true})).toHaveValue('computer edit')
+ await expect(page.getByLabel('Notes')).toHaveValue('Keep this rejected desktop draft')
+ await expect(active(page).locator('h2')).toHaveText('phone edit')
+ for(let n=0;n<2;n++){await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await expect(alert).toBeVisible()}
+ await page.getByRole('button',{name:'Check latest saved version',exact:true}).click()
+ await expect(page.getByRole('dialog',{name:'Latest saved version'})).toContainText('phone edit')
+ await page.getByRole('button',{name:'Back to my draft',exact:true}).click()
+ await expect(page.getByLabel('Title',{exact:true})).toHaveValue('computer edit')
+ // Reviewing/refetching never rebases a rejected draft. Another Save must still reject.
+ await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await expect(alert).toContainText('changed in another browser')
+ await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async(text:string)=>{(window as any).copiedDraft=text}}}))
+ await page.getByRole('button',{name:'Copy draft text',exact:true}).click()
+ await expect(dialog.getByRole('status')).toContainText('Draft copied')
+ expect(await page.evaluate(()=>(window as any).copiedDraft)).toContain('computer edit')
+ expect(sql("select title from public.daily_deck_items where title='phone edit'",'11111111-1111-1111-1111-111111111111')).toBe('phone edit')
+ await page.screenshot({path:`/tmp/dailydeck-edit-conflict-${info.project.name}.png`})
+ await page.getByRole('button',{name:'Cancel',exact:true}).click()
+ await expect(active(page).locator('h2')).toHaveText('phone edit')
+ await c.close()
+})
+
+test('sequential edits resolve successfully; a refreshed open stale form cannot overwrite the newer save',async({page,browser})=>{
+ const b=backend();await b.install(page);await ready(page);await openCloud(page);await create(page,'Starting title')
+ const {p,c}=await secondPage(browser,b);await openCloud(p)
+ await page.getByRole('button',{name:'Edit current task',exact:true}).click()
+ await page.getByLabel('Title',{exact:true}).fill('computer edit')
+ await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await expect(page.getByRole('dialog')).toHaveCount(0)
+ await expect(active(page).locator('h2')).toHaveText('computer edit')
+ await refresh(p)
+ await p.getByRole('button',{name:'Edit current task',exact:true}).click()
+ await expect(p.getByLabel('Title',{exact:true})).toHaveValue('computer edit')
+ await p.getByLabel('Title',{exact:true}).fill('phone edit')
+ await p.getByRole('button',{name:'Save task',exact:true}).click()
+ await expect(p.getByRole('dialog')).toHaveCount(0)
+ await expect(active(p).locator('h2')).toHaveText('phone edit')
+ await refresh(page)
+ await expect(active(page).locator('h2')).toHaveText('phone edit')
+ await page.getByRole('button',{name:'Edit current task',exact:true}).click()
+ await expect(page.getByLabel('Title',{exact:true})).toHaveValue('phone edit')
+ await page.getByLabel('Title',{exact:true}).fill('Final reviewed edit')
+ await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await expect(page.getByRole('dialog')).toHaveCount(0)
+ await expect(active(page).locator('h2')).toHaveText('Final reviewed edit')
+ await c.close()
+})
+
+
+test('an unknown save outcome remains visible through refresh and retry confirms the original request',async({page})=>{
+ const b=backend();await b.install(page);await ready(page);await openCloud(page);await create(page,'Before response loss')
+ await page.getByRole('button',{name:'Edit current task',exact:true}).click()
+ await page.getByLabel('Title',{exact:true}).fill('Saved but response lost')
+ b.state.dropAfterCommit=true
+ await page.getByRole('button',{name:'Save task',exact:true}).click()
+ const dialog=page.getByRole('dialog',{name:'Edit task',exact:true})
+ await expect(dialog.getByRole('alert')).toContainText('Save not confirmed')
+ await expect(page.getByRole('button',{name:'Save task',exact:true})).toBeDisabled()
+ await page.evaluate(()=>window.dispatchEvent(new Event('focus')))
+ await expect(active(page).locator('h2')).toHaveText('Saved but response lost')
+ await expect(dialog.getByRole('alert')).toContainText('Save not confirmed')
+ await expect(page.getByLabel('Title',{exact:true})).toHaveValue('Saved but response lost')
+ await page.getByRole('button',{name:'Retry pending cloud save',exact:true}).click()
+ await expect(dialog.getByRole('status')).toContainText('The original save was confirmed')
+ await expect(dialog.getByRole('alert')).toHaveCount(0)
+ await page.getByRole('button',{name:'Cancel',exact:true}).click()
+ await expect(active(page).locator('h2')).toHaveText('Saved but response lost')
 })

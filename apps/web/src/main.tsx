@@ -12,6 +12,7 @@ import {SupabaseConnection} from './SupabaseConnection'
 import {AccountSection,useAuth} from './Auth'
 import {auth} from './auth-store'
 import {cloud} from './cloud-store'
+import {CloudError} from './cloud-api'
 import {useCloud} from './CloudControls'
 import { Editor } from './Editor'
 import { TaskDeck, type Exit } from './TaskDeck'
@@ -52,6 +53,7 @@ function App() {
   useEffect(()=>{if(!TEST_MODE)return;const update=()=>setPro(isPro());window.addEventListener('daily-deck-entitlement',update);window.addEventListener('storage',update);const t=setInterval(update,1000);return()=>{clearInterval(t);window.removeEventListener('daily-deck-entitlement',update);window.removeEventListener('storage',update)}},[])
   const [deck, setDeck] = useState<Deck | null>(null)
   const [error, setError] = useState('')
+  const [editorError,setEditorError]=useState('')
   const [tab, setTab] = usePage()
   const [today, setToday] = useState(D.dayKey())
   const [editor, setEditor] = useState<Task | null>(null)
@@ -91,11 +93,11 @@ function App() {
       const snapshot=await transactDeck(change,expectedCloudRevision);undoId=undoable?D.undoToken(snapshot.deck,snapshot.day):undefined;apply(snapshot)
       if(message&&epoch===navigationEpoch.current){setAnnouncement(message);setToast(silent?null:{id:D.uid(),message,undoId})}
       return true
-    } catch(e){if(e instanceof LimitError)setUpgrade(e);else setError(errorText(e));return false}
+    } catch(e){if(e instanceof LimitError)setUpgrade(e);else {const message=errorText(e);setError(message);setEditorError((e instanceof CloudError&&e.code==='40001'?'Save conflict. ':'Save not confirmed. ')+message)};return false}
     finally {busyRef.current=false;setWriting(false);if(refreshPending.current&&!actionLock.current){refreshPending.current=false;refresh()}}
   }
-  const add = (habit: boolean) => { editorRevision.current=sync.scope==='local'?undefined:cloud.snapshot().snapshot?.revision;setEditingHabit(habit); setEditor(newTask(habit)) }
-  const edit = (task: Task) => {editorRevision.current=sync.scope==='local'?undefined:cloud.snapshot().snapshot?.revision; setEditingHabit(!!task.weekdays.length); setEditor(structuredClone(task)) }
+  const add = (habit: boolean) => { setEditorError(''); editorRevision.current=sync.scope==='local'?undefined:cloud.snapshot().snapshot?.revision;setEditingHabit(habit); setEditor(newTask(habit)) }
+  const edit = (task: Task) => {setEditorError('');editorRevision.current=sync.scope==='local'?undefined:cloud.snapshot().snapshot?.revision; setEditingHabit(!!task.weekdays.length); setEditor(structuredClone(task)) }
   const cards = deck ? D.pending(deck, today) : []
   const planUsage=deck?usage(deck):{tasks:0,habits:0}
   const counts = deck ? D.summarize(deck, today) : null
@@ -146,7 +148,8 @@ function App() {
       <PwaControls editing={modalOpen || busy} container={settingsTarget}/><footer className="page-footer"><div className="plan-usage" aria-label="Plan usage"><span>Tasks {planUsage.tasks}/{pro?'Unlimited':10}</span><span>Habits {planUsage.habits}/{pro?'Unlimited':5}</span></div><span><span className="status-dot"/> {sync.scope==='local'?'Saved in this browser · local deck':sync.phase==='saving'?'Cloud save in progress…':sync.pending?'Cloud save needs retry':sync.error?'Cloud needs attention':'Account cloud deck'}</span><button type="button" onClick={() => setInfo(true)}>{sync.scope==='local'?'Your local deck. Your own pace.':'Your account deck. Your own pace.'} <ArrowUpRight size={13}/></button></footer>
     </main><div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{toast?<span key={toast.id}>{toast.message}</span>:<span key={announcementSequence}>{announcement}</span>}</div>
     {toast && !modalOpen && <Toast key={toast.id} toast={toast} disabled={busy} dismiss={id=>setToast(current=>current?.id===id?null:current)} undo={id=>void commit((next,now)=>{if(!D.undo(next,id,now))throw new Error('This action changed or a new day began. Refresh your deck.')},'Last action undone')}/>}
-    {editor && <Editor pendingDay={deck?D.pending(deck,today).find(c=>c.taskId===editor.id)?.day:undefined} onUpgrade={kind=>setUpgrade(new LimitError(kind))} task={editor} habit={editingHabit} exists={!!deck?.tasks.some(t => t.id === editor.id)} close={() => setEditor(null)} error={error} busy={busy} usage={planUsage} unlimited={pro} save={async task => {
+    {editor && <Editor pendingDay={deck?D.pending(deck,today).find(c=>c.taskId===editor.id)?.day:undefined} onUpgrade={kind=>setUpgrade(new LimitError(kind))} task={editor} habit={editingHabit} exists={!!deck?.tasks.some(t => t.id === editor.id)} close={() => setEditor(null)} error={editorError} resolved={()=>setEditorError('')} review={async()=>{const snapshot=await cloud.refresh();return snapshot.deck.tasks.find(t=>t.id===editor.id)}} busy={busy} usage={planUsage} unlimited={pro} save={async task => {
+      setEditorError('')
       let fresh=false,cardId:string|undefined
       const creating=!deck?.tasks.some(t=>t.id===task.id)
       const success=await commit((next,now)=>{fresh=!next.tasks.some(t=>t.id===task.id);D.saveTask(next,task,D.dayKey(now));cardId=D.pending(next,D.dayKey(now)).find(c=>c.taskId===task.id)?.id},creating?undefined:task.remind?'Deadline saved. Browser reminders are not scheduled.':'Your task is saved',false,false,editorRevision.current)

@@ -8,6 +8,8 @@ export function backend() {
     dropAfterCommit: false,
     offline: false,
     hold: null as null | Promise<void>,
+    holdSaveTitle: '',
+    holdSave: null as null | Promise<void>,
     uploads: 0,
     failUploadAt: 0,
     holdUpload: null as null | Promise<void>,
@@ -59,6 +61,7 @@ export function backend() {
     try {
       if (path.startsWith('/rest/v1/rpc/')) {
         if (state.hold) await state.hold
+        if(state.holdSave && body.p_operation==='save' && body.p_args?.task?.title===state.holdSaveTitle)await state.holdSave
         let statement: string
         if (path.endsWith('daily_deck_sync'))
           statement = `select public.daily_deck_sync(${quote(body.p_expected_user)}::uuid,${quote(body.p_operation)},${quote(body.p_request_id)}::uuid,${quote(body.p_revision)}::bigint,${quote(JSON.stringify(body.p_args))}::jsonb,${quote(body.p_timezone)})`
