@@ -1,3 +1,4 @@
+import {service as accountService,Problem} from '../../../../supabase/functions/account-data/service.ts'
 import type { Page, Route } from '@playwright/test'
 import { installAuth, first, second } from './auth-fixture'
 import { sql, quote } from './cloud-db'
@@ -15,8 +16,29 @@ export function backend() {
     holdUpload: null as null | Promise<void>,
     uploadStarted: false,
     failDelete: false,
-    expired: false
+    expired: false,
+    failAccountStorage:false,
+    failAccountAuth:false,
+    dropAccountResponse:false,
+    abortConflictOnce:false,
+    statusOffline:false
   }
+  const accounts=accountService({
+    verify:async token=>{
+      if(!token.endsWith('.synthetic_signature_not_a_real_token'))throw new Problem(401,'AUTH','Invalid synthetic token')
+      const payload=JSON.parse(Buffer.from(token.split('.')[1],'base64url').toString())
+      if(sql(`select exists(select 1 from auth.users u join auth.sessions s on s.user_id=u.id where u.id=${quote(payload.sub)}::uuid and s.id=${quote(payload.session_id)}::uuid)`)!=='t')throw new Problem(401,'AUTH','Account session is revoked')
+      return{id:payload.sub,email:payload.sub===first?'authorized@example.test':'second@example.test',app_metadata:{providers:['email','google']}}
+    },
+    rpc:async(name,args={})=>{
+      if(!/^daily_deck_(account_export|delete_[a-z]+)$/.test(name))throw new Error('Unexpected account test RPC')
+      const params=Object.entries(args).map(([k,v])=>`${k}=>${quote(v)}`).join(',')
+      return JSON.parse(sql(`begin;set local role service_role;set local "request.jwt.claims"='{"role":"service_role"}';select public.${name}(${params});commit;`)||'null')
+    },
+    download:async name=>{const file=bytes.get(name);if(!file)throw new Error('Photo missing');return new Uint8Array(file.body)},
+    remove:async names=>{if(state.failAccountStorage)throw new Problem(503,'STORAGE','Storage cleanup is temporarily unavailable. Retry the deletion request.');for(const name of names){sql(`begin;set local "request.jwt.claims"='{"role":"service_role"}';delete from storage.objects where bucket_id='daily-deck-photos' and name=${quote(name)};commit;`);bytes.delete(name)}},
+    deleteIdentity:async owner=>{if(state.failAccountAuth)throw new Problem(503,'AUTH_DELETE','Auth cleanup is temporarily unavailable. Retry the deletion request.');sql(`begin;set local "request.jwt.claims"='{"role":"service_role"}';delete from auth.users where id=${quote(owner)}::uuid;commit;`)}
+  })
   const extension = async (route: Route, owner: string | null) => {
     const req = route.request(),
       url = new URL(req.url()),
@@ -27,7 +49,7 @@ export function backend() {
     } catch {}
     if (
       !path.startsWith('/storage/') &&
-      !['daily_deck_sync', 'daily_deck_sync_status', 'daily_deck_photo'].some(
+      path!=='/functions/v1/account-data' && path!=='/auth/v1/user' && !['daily_deck_sync', 'daily_deck_sync_status', 'daily_deck_photo','daily_deck_lifecycle_status'].some(
         (n) => path === '/rest/v1/rpc/' + n
       )
     )
@@ -46,6 +68,25 @@ export function backend() {
       await route.fulfill({ status: 204, headers })
       return true
     }
+    if(path==='/auth/v1/user'){
+      if(owner&&sql(`select exists(select 1 from auth.users where id=${quote(owner)}::uuid)`)==='f')return send({code:'user_not_found',msg:'Account deleted'},401)
+      return false
+    }
+    if(path==='/functions/v1/account-data'){
+      try{
+        const token=(req.headers().authorization??'').replace(/^Bearer /,'')
+        if(body.action==='export'){
+          const archive=await accounts.exportData(token,body.expected_owner)
+          await route.fulfill({status:200,headers:{...headers,'content-type':'application/x-tar','X-Archive-SHA256':archive.digest},body:Buffer.from(archive.body)})
+          return true
+        }
+        const result=await accounts.deletion(body,token)
+        if(state.dropAccountResponse){state.dropAccountResponse=false;await route.abort();return true}
+        return send(result,result.complete?200:202)
+      }catch(e){return send({code:e instanceof Problem?e.code:'RETRY',message:e instanceof Error?e.message:'Retry the original deletion request',...(e instanceof Problem&&e.pending?{deletion_pending:e.pending}:{})},e instanceof Problem?e.status:503)}
+    }
+    if(path.endsWith('/daily_deck_lifecycle_status'))return send(JSON.parse(sql('select public.daily_deck_lifecycle_status()',owner??undefined)))
+    if(state.statusOffline&&path.endsWith('/daily_deck_sync_status')){await route.abort();return true}
     if (state.offline) {
       await route.abort()
       return true
@@ -173,6 +214,7 @@ export function backend() {
       const text =
         e && typeof e === 'object' && 'stderr' in e ? String(e.stderr) : ''
       const code = /ERROR:\s+([0-9A-Z]{5}):/.exec(text)?.[1] ?? 'XX000'
+      if(code==='40001'&&state.abortConflictOnce){state.abortConflictOnce=false;await route.abort();return true}
       return send(
         {
           code,
@@ -196,5 +238,5 @@ export function backend() {
     }, f.session(email))
     return f
   }
-  return { install, state, calls, bytes }
+  return { install, state, calls, bytes,accounts }
 }

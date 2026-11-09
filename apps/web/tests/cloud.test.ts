@@ -26,6 +26,7 @@ function fixture() {
     remote = empty(),
     revision = 0,
     offline = false,
+    statusOffline=false,
     drop = false,
     hold: Promise<void> | null = null
   const receipts = new Set<string>(),
@@ -46,7 +47,7 @@ function fixture() {
       if (offline) return { data: null, error: { code: 'FETCH_ERROR' } }
       if (hold) await hold
       if (name === 'daily_deck_sync_status')
-        return { data: { applied: receipts.has(p.p_request_id) }, error: null }
+        return statusOffline?{data:null,error:{code:'FETCH_ERROR'}}:{ data: { applied: receipts.has(p.p_request_id),snapshot:{owner_id:owner,revision,deck:structuredClone(remote),photos:[]} }, error: null }
       if (p.p_expected_user !== owner)
         return { data: null, error: { code: '42501' } }
       if (p.p_operation !== 'read' && !receipts.has(p.p_request_id)) {
@@ -99,6 +100,7 @@ function fixture() {
     },
     offline: (v: boolean) => (offline = v),
     drop: () => (drop = true),
+    statusOffline:(v:boolean)=>(statusOffline=v),
     conflict: () => revision++,
     hold: (v: Promise<void> | null) => (hold = v)
   }
@@ -216,22 +218,11 @@ it('cloud writes wait for a server reply and retain an owner-bound pending reque
   expect(f.store.snapshot().pending).toBeNull()
   expect(f.map.get(D.STORAGE_KEY)).toBe('original guest deck')
 })
-it('a lost response is resolved without submitting a duplicate task', async () => {
-  const f = fixture()
-  await f.store.open()
-  f.drop()
-  await expect(f.store.transact((d) => D.saveTask(d, task()))).rejects.toThrow(
-    'could not be confirmed'
-  )
-  const pending = f.store.snapshot().pending!
-  expect(pending.owner).toBe(A)
-  await expect(
-    f.store.transact((d) => D.saveTask(d, task('another')))
-  ).rejects.toThrow('unresolved')
-  await f.store.retry()
-  expect(f.remote().tasks).toHaveLength(1)
-  expect(f.calls.filter((c) => c.p.p_operation === 'save')).toHaveLength(1)
-  expect(f.store.snapshot().pending).toBeNull()
+it('a lost response is reconciled by its receipt without a duplicate task or write',async()=>{
+ const f=fixture();await f.store.open();f.drop()
+ await f.store.transact(d=>D.saveTask(d,task()))
+ expect(f.remote().tasks).toHaveLength(1);expect(f.calls.filter(c=>c.p.p_operation==='save')).toHaveLength(1);expect(f.store.snapshot().pending).toBeNull()
+ expect(f.map.get(`daily-deck.cloud.${A}.outcomes.v1`)).toContain('confirmed')
 })
 it('stale conflicts reject without overwriting and keep the guest data', async () => {
   const f = fixture()
@@ -379,17 +370,27 @@ it('another tab cannot overwrite a durable unresolved account request', async ()
   })
   other.identityChanged()
   await other.open()
-  f.drop()
+  f.drop();f.statusOffline(true)
   await expect(f.store.transact((d) => D.saveTask(d, task()))).rejects.toThrow(
-    'could not be confirmed'
+    'result is unknown'
   )
   const original = f.store.snapshot().pending!.id
   await expect(
     other.transact((d) => D.saveTask(d, task('another-tab')))
   ).rejects.toThrow('unresolved')
   expect(other.snapshot().pending?.id).toBe(original)
+  f.statusOffline(false)
   await other.retry()
   expect(f.remote().tasks).toHaveLength(1)
   await f.store.refresh()
   expect(f.store.snapshot().pending).toBeNull()
+})
+it('unknown request IDs survive failed receipt checks; an advanced revision later proves conflict without resubmitting',async()=>{
+ const f=fixture();await f.store.open();f.statusOffline(true)
+ f.api.rpc.mockImplementationOnce(async()=>({data:null,error:{code:'FETCH_ERROR'}}))
+ await expect(f.store.transact(d=>D.saveTask(d,task()))).rejects.toMatchObject({outcome:'unknown'})
+ const id=f.store.snapshot().pending!.id;f.conflict();f.statusOffline(false)
+ await expect(f.store.retry()).rejects.toMatchObject({code:'40001',outcome:'conflict'})
+ expect(f.store.snapshot().pending).toBeNull();expect(f.remote().tasks).toHaveLength(0)
+ expect(f.map.get(`daily-deck.cloud.${A}.outcomes.v1`)).toContain(id)
 })

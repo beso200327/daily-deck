@@ -40,7 +40,7 @@ if __name__ == '__main__':
                 files.extend(['verify-foundation.sql','tests/isolation.sql'])
             if migration.name.startswith('20261108000200_'):
                 files.extend(['tests/auth-onboarding.sql','verify-auth.sql'])
-        files.extend(['tests/cloud.sql','tests/cloud-regressions.sql','tests/cloud-import-security.sql','verify-cloud.sql'])
+        files.extend(['tests/cloud.sql','tests/cloud-regressions.sql','tests/cloud-import-security.sql','verify-cloud.sql','tests/account-lifecycle.sql','verify-account-data.sql'])
         for file in files:
             print(f'Applying in isolated container: {file}', flush=True)
             run('exec',NAME,'psql','-X','--set','ON_ERROR_STOP=1','-U','postgres','-d','dailydeck_test','--file',f'/spec/{file}')

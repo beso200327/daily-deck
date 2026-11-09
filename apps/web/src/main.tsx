@@ -12,7 +12,7 @@ import {SupabaseConnection} from './SupabaseConnection'
 import {AccountSection,useAuth} from './Auth'
 import {auth} from './auth-store'
 import {cloud} from './cloud-store'
-import {CloudError} from './cloud-api'
+import {saveFailureMessage} from './cloud-api'
 import {useCloud} from './CloudControls'
 import { Editor } from './Editor'
 import { TaskDeck, type Exit } from './TaskDeck'
@@ -93,7 +93,7 @@ function App() {
       const snapshot=await transactDeck(change,expectedCloudRevision);undoId=undoable?D.undoToken(snapshot.deck,snapshot.day):undefined;apply(snapshot)
       if(message&&epoch===navigationEpoch.current){setAnnouncement(message);setToast(silent?null:{id:D.uid(),message,undoId})}
       return true
-    } catch(e){if(e instanceof LimitError)setUpgrade(e);else {const message=errorText(e);setError(message);setEditorError((e instanceof CloudError&&e.code==='40001'?'Save conflict. ':'Save not confirmed. ')+message)};return false}
+    } catch(e){if(e instanceof LimitError)setUpgrade(e);else {const message=errorText(e);setError(message);setEditorError(saveFailureMessage(e))};return false}
     finally {busyRef.current=false;setWriting(false);if(refreshPending.current&&!actionLock.current){refreshPending.current=false;refresh()}}
   }
   const add = (habit: boolean) => { setEditorError(''); editorRevision.current=sync.scope==='local'?undefined:cloud.snapshot().snapshot?.revision;setEditingHabit(habit); setEditor(newTask(habit)) }

@@ -1,3 +1,4 @@
+import {AccountData} from './AccountData'
 import {useEffect,useId,useRef,useState,useSyncExternalStore} from 'react'
 import {auth,type AuthState} from './auth-store'
 import type {AuthScreen} from './auth-policy'
@@ -52,7 +53,7 @@ function AuthForm({state,continueLocal}:{state:AuthState;continueLocal?:()=>void
     </>}
     <div className="auth-links"><button type="button" className="text-button" onClick={()=>void auth.refresh()}>Retry account setup</button><button type="button" className="text-button" onClick={()=>void auth.signOut()}>Sign out instead</button></div>
    </>}
-   {screen==='account'&&<><p>Signed in as <strong>{state.user?.email}</strong>.</p><p>Age was self-declared, not verified. Preview setup does not mean that approved legal acceptance or public-release requirements are complete.</p><p>Your local deck is shared within this browser, not stored under this account. Different accounts do not get separate cloud copies of it.</p><CloudControls/></>}
+   {screen==='account'&&<><p>Signed in as <strong>{state.user?.email}</strong>.</p><p>Age was self-declared, not verified. Preview setup does not mean that approved legal acceptance or public-release requirements are complete.</p><p>Your local deck is shared within this browser, not stored under this account. Different accounts do not get separate cloud copies of it.</p><CloudControls/><AccountData/></>}
    {['signin','signup'].includes(screen)&&<>
     <div className="auth-links"><button type="button" className="text-button" onClick={()=>void auth.open(screen==='signin'?'signup':'signin',email)}>{screen==='signin'?'Create an account instead':'Sign in instead'}</button>{screen==='signin'&&<><button type="button" className="text-button" onClick={()=>void auth.open('forgot',email)}>Forgot password?</button><button type="button" className="text-button" onClick={()=>void auth.open('confirmation',email)}>Resend confirmation</button></>}</div>
     {state.providers&&(state.providers.google||state.providers.apple)?<div className="auth-providers">
@@ -65,6 +66,7 @@ function AuthForm({state,continueLocal}:{state:AuthState;continueLocal?:()=>void
    {['confirmation','forgot'].includes(screen)&&<button type="button" className="text-button" onClick={()=>void auth.open('signin',email)}>Back to sign in</button>}
    </fieldset>
   </form>}
+  {screen==='onboarding'&&state.user&&<AccountData/>}
   <div ref={feedback}>{!state.ready&&<p role="status">Checking account…</p>}{state.notice&&<p className="auth-status" role="status">{state.notice}</p>}
   {state.error&&<p className="field-error" role="alert">{state.error}</p>}</div>
  </Modal>

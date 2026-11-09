@@ -1,3 +1,4 @@
+import {readFile} from 'node:fs/promises'
 import { test, expect, type Page, type Browser } from '@playwright/test'
 import { backend } from './cloud-fixture'
 import { reset, sql } from './cloud-db'
@@ -334,7 +335,7 @@ test('lost save and import responses retry idempotently; offline mode does not c
   await close(page)
   await page.getByRole('button', { name: 'Add a task', exact: true }).click()
   await page.getByLabel('Title', { exact: true }).fill('Retry once')
-  b.state.dropAfterCommit = true
+  b.state.dropAfterCommit = true;b.state.statusOffline=true
   await page.getByRole('button', { name: 'Save task', exact: true }).click()
   await expect(
     page.getByRole('button', { name: 'Retry pending cloud save', exact: true })
@@ -342,6 +343,7 @@ test('lost save and import responses retry idempotently; offline mode does not c
   await expect(page.getByLabel('Title', { exact: true })).toHaveValue(
     'Retry once'
   )
+  b.state.statusOffline=false
   await page
     .getByRole('button', { name: 'Retry pending cloud save', exact: true })
     .click()
@@ -745,7 +747,7 @@ test('an unknown save outcome remains visible through refresh and retry confirms
  const b=backend();await b.install(page);await ready(page);await openCloud(page);await create(page,'Before response loss')
  await page.getByRole('button',{name:'Edit current task',exact:true}).click()
  await page.getByLabel('Title',{exact:true}).fill('Saved but response lost')
- b.state.dropAfterCommit=true
+ b.state.dropAfterCommit=true;b.state.statusOffline=true
  await page.getByRole('button',{name:'Save task',exact:true}).click()
  const dialog=page.getByRole('dialog',{name:'Edit task',exact:true})
  await expect(dialog.getByRole('alert')).toContainText('Save not confirmed')
@@ -754,9 +756,86 @@ test('an unknown save outcome remains visible through refresh and retry confirms
  await expect(active(page).locator('h2')).toHaveText('Saved but response lost')
  await expect(dialog.getByRole('alert')).toContainText('Save not confirmed')
  await expect(page.getByLabel('Title',{exact:true})).toHaveValue('Saved but response lost')
+ b.state.statusOffline=false
  await page.getByRole('button',{name:'Retry pending cloud save',exact:true}).click()
  await expect(dialog.getByRole('status')).toContainText('The original save was confirmed')
  await expect(dialog.getByRole('alert')).toHaveCount(0)
  await page.getByRole('button',{name:'Cancel',exact:true}).click()
  await expect(active(page).locator('h2')).toHaveText('Saved but response lost')
+})
+
+
+function unpackAccountTar(body:Buffer){const result=new Map<string,Buffer>();for(let pos=0;pos<body.length;){const name=body.subarray(pos,pos+100).toString().split('\0')[0];if(!name)break;const size=parseInt(body.subarray(pos+124,pos+136).toString(),8);result.set(name,body.subarray(pos+512,pos+512+size));pos+=512+Math.ceil(size/512)*512}return result}
+
+test('account export downloads only the verified cloud owner including profile history and actual original/cropped files',async({page})=>{
+ const b=backend();await b.install(page);await ready(page);const guest=await local(page);await openCloud(page)
+ await page.getByRole('button',{name:'Add a task',exact:true}).click();await page.getByLabel('Title',{exact:true}).fill('Owned export task');await photo(page);await page.getByRole('button',{name:'Save task',exact:true}).click();await expect(active(page).locator('h2')).toHaveText('Owned export task')
+ await page.getByRole('button',{name:'Done',exact:true}).click();await expect.poll(()=>sql("select count(*) from public.daily_deck_events where action='done'",'11111111-1111-1111-1111-111111111111')).toBe('1')
+ sql("insert into public.daily_deck_items(owner_id,kind,title,created_on) values('22222222-2222-2222-2222-222222222222','today','Another user private title',current_date)")
+ await account(page)
+ const file=page.waitForEvent('download');await page.getByRole('button',{name:'Export my data',exact:true}).click();const download=await file,path=await download.path();expect(path).not.toBeNull()
+ const archive=unpackAccountTar(await readFile(path!)),data=JSON.parse(archive.get('account.json')!.toString()),manifest=JSON.parse(archive.get('manifest.json')!.toString())
+ expect(manifest).toMatchObject({complete:true,version:1,restorable:false,owner_id:'11111111-1111-1111-1111-111111111111'})
+ expect(data.data.daily_deck_profiles).toHaveLength(1);expect(data.data.daily_deck_events).toHaveLength(1)
+ expect(JSON.stringify(data)).toContain('Owned export task');expect(JSON.stringify(data)).not.toContain('Another user private title');expect(JSON.stringify(data)).not.toContain('Walk for 20 minutes');expect(JSON.stringify(data)).not.toContain('access_token')
+ for(const [name,file] of b.bytes){const archiveFile=archive.get('photos/'+name.slice(name.indexOf('/')+1));expect(archiveFile?.equals(file.body)).toBe(true)}
+ await expect(page.getByRole('dialog',{name:'Your account'}).getByRole('status')).toContainText('Complete account archive prepared')
+ expect(await local(page)).toBe(guest)
+})
+
+test('deletion preserves guest data, erases owner history/photos/receipts, survives Storage/Auth failures and hides other-device caches',async({page,browser},info)=>{
+ const b=backend();await b.install(page);await ready(page);const guest=await local(page)
+ await page.evaluate(async()=>{const r=indexedDB.open('daily-deck-images',2);r.onupgradeneeded=()=>{for(const name of ['photos','edits'])if(!r.result.objectStoreNames.contains(name))r.result.createObjectStore(name)};const db=await new Promise<IDBDatabase>(resolve=>r.onsuccess=()=>resolve(r.result));const tx=db.transaction('photos','readwrite');tx.objectStore('photos').put(new Blob(['guest photo bytes']),'guest-preserved');await new Promise(resolve=>tx.oncomplete=resolve);db.close()})
+ await openCloud(page);await page.getByRole('button',{name:'Add a task',exact:true}).click();await page.getByLabel('Title',{exact:true}).fill('Erase owner history');await photo(page);await page.getByRole('button',{name:'Save task',exact:true}).click();await expect(active(page).locator('h2')).toHaveText('Erase owner history')
+ await page.getByRole('button',{name:'Done',exact:true}).click();await expect.poll(()=>sql("select count(*) from public.daily_deck_events where action='done'",'11111111-1111-1111-1111-111111111111')).toBe('1')
+ await create(page,'Pending owner task')
+ const {p,c}=await secondPage(browser,b);await openCloud(p);await account(page)
+ await page.getByRole('button',{name:'Delete account',exact:true}).click()
+ let confirmation=page.getByRole('dialog',{name:'Delete account?',exact:true});await confirmation.getByRole('button',{name:'Cancel',exact:true}).click();expect(sql("select count(*) from auth.users")).toBe('2')
+ await page.getByRole('button',{name:'Delete account',exact:true}).click();confirmation=page.getByRole('dialog',{name:'Delete account?',exact:true})
+ const original=page.viewportSize()!;await page.setViewportSize({width:320,height:400});await expect(confirmation.getByRole('button',{name:'Permanently delete account',exact:true})).toBeInViewport();await page.screenshot({path:`/tmp/account-delete-${info.project.name}.png`});await page.setViewportSize(original)
+ await confirmation.getByLabel('Password to verify now (email accounts)').fill('wrong-password');await confirmation.getByRole('button',{name:'Permanently delete account',exact:true}).click();await expect(confirmation.getByRole('alert')).toContainText('verification failed');expect(sql('select count(*) from daily_deck_private.account_deletions')).toBe('0')
+ await confirmation.getByLabel('Password to verify now (email accounts)').fill('synthetic-password-only');b.state.failAccountStorage=true;await confirmation.getByRole('button',{name:'Permanently delete account',exact:true}).click();const recovery=page.getByRole('dialog',{name:'Account deletion status',exact:true});await expect(recovery.getByRole('alert')).toContainText('Storage cleanup')
+ expect(sql("select stage from daily_deck_private.account_deletions")).toBe('storage');expect(sql("select count(*) from public.daily_deck_events")).toBe('1')
+ await p.evaluate(()=>window.dispatchEvent(new Event('focus')));await expect(p.getByRole('heading',{name:'Your deck is on hold'})).toBeVisible();await expect(p.locator('body')).not.toContainText('Pending owner task')
+ b.state.failAccountStorage=false;b.state.failAccountAuth=true
+ await recovery.getByRole('button',{name:'Retry deletion safely',exact:true}).click();await expect(recovery.getByRole('alert')).toContainText('Auth cleanup')
+ expect(sql('select stage from daily_deck_private.account_deletions')).toBe('auth');expect(sql("select count(*) from public.daily_deck_events")).toBe('0');expect(sql("select count(*) from auth.users")).toBe('2')
+ b.state.failAccountAuth=false
+ const outcomes=await b.accounts.worker();expect(outcomes[0]).toMatchObject({complete:true})
+ await recovery.getByRole('button',{name:'Retry deletion safely',exact:true}).click();await expect(recovery.getByRole('status')).toContainText('Account deletion completed')
+ expect(sql('select count(*) from auth.users')).toBe('1');expect(sql('select count(*) from daily_deck_private.sync_receipts')).toBe('0');expect(sql("select count(*) from storage.objects where name like '11111111%'")).toBe('0');expect([...b.bytes.keys()].some(n=>n.startsWith('11111111'))).toBe(false)
+ expect(await local(page)).toBe(guest)
+ expect(await page.evaluate(()=>Object.keys(localStorage).some(k=>k.startsWith('daily-deck.cloud.11111111-1111-1111-1111-111111111111.')))).toBe(false)
+ const guestPhoto=await page.evaluate(async()=>{const r=indexedDB.open('daily-deck-images',2);const db=await new Promise<IDBDatabase>(resolve=>r.onsuccess=()=>resolve(r.result));const tx=db.transaction('photos','readonly');const get=tx.objectStore('photos').get('guest-preserved');const blob=await new Promise<Blob>(resolve=>get.onsuccess=()=>resolve(get.result));db.close();return blob.text()});expect(guestPhoto).toBe('guest photo bytes')
+ await p.reload();await expect(p.getByRole('heading',{name:'Your deck is on hold'})).toBeVisible();await expect(active(p)).toHaveCount(0);await c.close()
+})
+
+test('Google verification returns to an explicit confirmation and a lost deletion response resumes without another account write',async({page})=>{
+ const b=backend();await b.install(page);await ready(page);await openCloud(page);await create(page,'Google-owned task');await account(page)
+ await page.getByRole('button',{name:'Delete account',exact:true}).click();await page.getByRole('button',{name:'Verify with Google',exact:true}).click()
+ await expect(page.getByRole('dialog',{name:'Your account',exact:true})).toBeVisible();expect(sql('select count(*) from daily_deck_private.account_deletions')).toBe('0')
+ await page.getByRole('button',{name:'Delete account',exact:true}).click();b.state.dropAccountResponse=true
+ await page.getByRole('dialog',{name:'Delete account?',exact:true}).getByRole('button',{name:'Permanently delete account',exact:true}).click()
+ await expect.poll(()=>sql('select stage from daily_deck_private.account_deletions')).toBe('complete')
+ await close(page)
+ await page.getByRole('button',{name:'Check deletion status',exact:true}).click();const status=page.getByRole('dialog',{name:'Account deletion status',exact:true});await status.getByRole('button',{name:'Retry deletion safely',exact:true}).click();await expect(status.getByRole('status')).toContainText('Account deletion completed');expect(sql('select count(*) from daily_deck_private.account_deletions')).toBe('1')
+})
+
+test('a lost conflict response reconciles to confirmed stale-draft rejection rather than relabeling every network error',async({page,browser})=>{
+ const b=backend();await b.install(page);await ready(page);await openCloud(page);await create(page,'Original shared task')
+ const {p,c}=await secondPage(browser,b);await openCloud(p);await p.getByRole('button',{name:'Edit current task',exact:true}).click();await p.getByLabel('Title',{exact:true}).fill('Phone test')
+ await p.evaluate(()=>{window.addEventListener('focus',e=>e.stopImmediatePropagation(),true);document.addEventListener('visibilitychange',e=>e.stopImmediatePropagation(),true)})
+ await page.getByRole('button',{name:'Edit current task',exact:true}).click();await page.getByLabel('Title',{exact:true}).fill('Computer test');await page.getByRole('button',{name:'Save task',exact:true}).click();await expect(active(page).locator('h2')).toHaveText('Computer test')
+ b.state.abortConflictOnce=true;await p.getByRole('button',{name:'Save task',exact:true}).click();await expect(p.getByRole('dialog',{name:'Edit task'}).getByRole('alert')).toContainText('Save conflict')
+ await expect(p.getByLabel('Title',{exact:true})).toHaveValue('Phone test');expect(sql("select count(*) from public.daily_deck_items where title='Phone test'",'11111111-1111-1111-1111-111111111111')).toBe('0')
+ expect(await p.evaluate(()=>localStorage.getItem('daily-deck.cloud.11111111-1111-1111-1111-111111111111.outcomes.v1'))).toContain('conflict');await c.close()
+})
+
+test('Google verification returning a different account cannot authorize deletion of that account',async({page})=>{
+ const b=backend(),f=await b.install(page);await ready(page);await openCloud(page);await create(page,'Original intended account task');await account(page)
+ await page.getByRole('button',{name:'Delete account',exact:true}).click();f.fixture.nextOAuthEmail='second@example.test';await page.getByRole('button',{name:'Verify with Google',exact:true}).click()
+ await expect(page.getByRole('dialog',{name:'Your account',exact:true})).toContainText('second@example.test');await expect(page.getByRole('dialog',{name:'Your account',exact:true}).getByRole('alert')).toContainText('different account')
+ await page.getByRole('button',{name:'Delete account',exact:true}).click();const confirmation=page.getByRole('dialog',{name:'Delete account?',exact:true});await expect(confirmation).toContainText('second@example.test');await confirmation.getByRole('button',{name:'Permanently delete account',exact:true}).click();await expect(confirmation.getByRole('alert')).toContainText('different account')
+ expect(sql('select count(*) from auth.users')).toBe('2');expect(sql('select count(*) from daily_deck_private.account_deletions')).toBe('0');await confirmation.getByRole('button',{name:'Cancel',exact:true}).click()
 })

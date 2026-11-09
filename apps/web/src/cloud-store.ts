@@ -14,6 +14,7 @@ import {
   cleanupPhoto,
   bindAccountClient,
   cloudError,
+  validateSnapshot,
   CloudError,
   type CloudSnapshot,
   type CloudRequest
@@ -450,33 +451,42 @@ export class CloudStore {
       const s = await syncRequest(api, p)
       this.check(p.owner, epoch)
       this.savePending(null, p.owner, p.id)
+      this.recordOutcome(p,'confirmed','')
       return await this.accept(api, s, epoch)
     } catch (e) {
       if (epoch !== this.epoch) throw e
-      const code = e instanceof CloudError ? e.code : ''
-      if (
-        (code === 'PHOTO' && !retrying) ||
-        (sent &&
-          [
-            '40001',
-            '23514',
-            '23503',
-            '23505',
-            '22023',
-            '22P02',
-            '23502',
-            '54000',
-            'P0001'
-          ].includes(code))
-      )
-        this.savePending(null, p.owner, p.id)
+      let failure=e
+      const original = e instanceof CloudError ? e : null
+      if(sent&&(!original||['unknown','network'].includes(original.outcome)))failure=new CloudError('The connection ended before the save response was verified. The result is unknown; keep this draft and retry the original transaction.',original?.code??'','unknown')
+      if(sent && (!original || ['unknown','network'].includes(original.outcome))){
+        try{
+          const api=await this.api(p.owner,epoch)
+          const status=await api.rpc('daily_deck_sync_status',{p_expected_user:p.owner,p_request_id:p.id})
+          this.check(p.owner,epoch)
+          if(!status.error && status.data?.applied===true){
+            const s=validateSnapshot(status.data.snapshot,p.owner)
+            this.savePending(null,p.owner,p.id);this.recordOutcome(p,'confirmed','receipt')
+            return await this.accept(api,s,epoch)
+          }
+          // Status serializes on the original transaction lock. A missing receipt
+          // plus an advanced revision proves this stale request cannot apply later.
+          if(!status.error && status.data?.applied===false && status.data.snapshot?.owner_id===p.owner && Number.isSafeInteger(status.data.snapshot.revision) && status.data.snapshot.revision>p.revision)
+            failure=new CloudError('The transaction was not applied: the cloud deck changed while this draft was open. Review the saved task and reopen before editing.','40001')
+        }catch{/* Preserve the original request ID until a receipt can be checked. */}
+      }
+      const code=failure instanceof CloudError?failure.code:''
+      if((code==='PHOTO'&&!retrying)||(sent && failure instanceof CloudError && ['conflict','rejected'].includes(failure.outcome)))this.savePending(null,p.owner,p.id)
+      this.recordOutcome(p,failure instanceof CloudError?failure.outcome:'unknown',code)
       this.patch({
         phase: 'error',
         error:
-          e instanceof Error ? e.message : 'Cloud save could not be confirmed.'
+          failure instanceof Error ? failure.message : 'Cloud save could not be confirmed.'
       })
-      throw e
+      throw failure
     }
+  }
+  private recordOutcome(p:CloudRequest,outcome:string,code:string){
+    try{const storage=this.deps.storage(),name=key(p.owner,'outcomes');let rows=[];try{const value=JSON.parse(storage.getItem(name)??'[]');rows=Array.isArray(value)?value:[]}catch{};storage.setItem(name,JSON.stringify([...rows.filter((r:{id:string})=>r.id!==p.id),{id:p.id,outcome,code,at:new Date().toISOString()}].slice(-20)))}catch{/* Never drop the durable pending request because diagnostics cannot be retained. */}
   }
   async retry() {
     const owner = this.owner(),
@@ -494,8 +504,9 @@ export class CloudStore {
     if (resolved.error) throw cloudError(resolved.error)
     if (resolved.data?.applied === true) {
       // Get a fully validated fresh snapshot through the normal typed reader.
-      const { s } = await this.readFor(owner, epoch)
+      const s=validateSnapshot(resolved.data.snapshot,owner)
       this.savePending(null, owner, p.id)
+      this.recordOutcome(p,'confirmed','receipt')
       if (p.operation === 'import') return this.open()
       return this.accept(api, s, epoch)
     }
@@ -503,6 +514,10 @@ export class CloudStore {
       throw new CloudError(
         'The pending save could not be verified. Retry after reconnecting.'
       )
+    if(resolved.data.snapshot?.owner_id===owner && resolved.data.snapshot.revision>p.revision){
+      this.savePending(null,owner,p.id);this.recordOutcome(p,'conflict','40001')
+      const conflict=new CloudError('The original transaction was not applied because the cloud changed. Your draft is still here. Reopen the saved task before editing.','40001');this.patch({phase:'error',error:conflict.message});throw conflict
+    }
     if (p.operation === 'import') {
       const saved = await transfer(owner, undefined, p.id)
       this.check(owner, epoch)

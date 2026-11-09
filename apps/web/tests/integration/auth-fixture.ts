@@ -3,11 +3,11 @@ import type {Page,Route} from '@playwright/test'
 export const third='33333333-3333-3333-3333-333333333333',fourth='44444444-4444-4444-4444-444444444444'
 export const service='https://auth-fixture.supabase.co',password='synthetic-password-only',first='11111111-1111-1111-1111-111111111111',second='22222222-2222-2222-2222-222222222222'
 export async function installAuth(page:Page,extension?:(route:Route,owner:string|null)=>Promise<boolean>){
- const fixture={approved:new Set<string>(),google:true,apple:false,mode:'preview',confirmed:true,challenge:'',activeEmail:'authorized@example.test',signupCalls:0,resendCalls:0,recoverCalls:0,refreshCalls:0,resetCalls:0,tokenCalls:0,requests:[] as {path:string;method:string;body:any}[],holdUser:null as null|Promise<void>,userFailure:false,holdSignin:null as null|Promise<void>}
+ const fixture={nextOAuthEmail:'',amrMethod:'password',approved:new Set<string>(),google:true,apple:false,mode:'preview',confirmed:true,challenge:'',activeEmail:'authorized@example.test',signupCalls:0,resendCalls:0,recoverCalls:0,refreshCalls:0,resetCalls:0,tokenCalls:0,requests:[] as {path:string;method:string;body:any}[],holdUser:null as null|Promise<void>,userFailure:false,holdSignin:null as null|Promise<void>}
  const users=new Map<string,any>(),passwords=new Map<string,string>()
  const makeUser=(email:string)=>{let u=users.get(email);if(!u){u={id:email==='second@example.test'?second:email==='authorized@example.test'?first:email.includes('privaterelay.appleid.com')?fourth:third,aud:'authenticated',role:'authenticated',email,app_metadata:{provider:'email',providers:['email']},user_metadata:{},email_confirmed_at:'2026-11-08T08:00:00Z',created_at:'2026-11-08T08:00:00Z',identities:[]};users.set(email,u);passwords.set(email,password)}return u}
  makeUser('authorized@example.test');makeUser('second@example.test')
- const token=(user:any,expired=false)=>{const now=Math.floor(Date.now()/1000);const encode=(v:unknown)=>Buffer.from(JSON.stringify(v)).toString('base64url');return`${encode({alg:'HS256',typ:'JWT'})}.${encode({sub:user.id,email:user.email,role:'authenticated',aud:'authenticated',iat:now-10,exp:expired?now-100:now+3600,session_id:user.id})}.synthetic_signature_not_a_real_token`}
+ const token=(user:any,expired=false)=>{const now=Math.floor(Date.now()/1000);const encode=(v:unknown)=>Buffer.from(JSON.stringify(v)).toString('base64url');return`${encode({alg:'HS256',typ:'JWT'})}.${encode({sub:user.id,email:user.email,role:'authenticated',aud:'authenticated',iat:now-10,exp:expired?now-100:now+3600,session_id:user.id,amr:[{method:fixture.amrMethod,timestamp:now-10}]})}.synthetic_signature_not_a_real_token`}
  const session=(email:string,expired=false)=>{const user=makeUser(email);return{access_token:token(user,expired),refresh_token:'synthetic_refresh_'+user.id,expires_in:3600,expires_at:Math.floor(Date.now()/1000)+(expired?-100:3600),token_type:'bearer',user}}
  const subject=(request:import('@playwright/test').Request)=>{try{return JSON.parse(Buffer.from((request.headers().authorization??'').replace('Bearer ','').split('.')[1],'base64url').toString()).sub}catch{return null}}
  await page.route(service+'/**',async route=>{
@@ -22,11 +22,13 @@ export async function installAuth(page:Page,extension?:(route:Route,owner:string
   if(path==='/auth/v1/resend'){fixture.resendCalls++;fixture.challenge=body.code_challenge??fixture.challenge;return send({})}
   if(path==='/auth/v1/recover'){fixture.recoverCalls++;fixture.activeEmail=body.email;fixture.challenge=body.code_challenge;return send({})}
   if(path==='/auth/v1/authorize'){
-   fixture.challenge=url.searchParams.get('code_challenge')??'';fixture.activeEmail=url.searchParams.get('provider')==='apple'?'apple-private@privaterelay.appleid.com':'authorized@example.test';const back=new URL(url.searchParams.get('redirect_to')!);back.searchParams.set('code','valid-oauth-code-123');return route.fulfill({status:302,headers:{location:back.href}})
+   fixture.amrMethod='oauth'
+   fixture.challenge=url.searchParams.get('code_challenge')??'';fixture.activeEmail=fixture.nextOAuthEmail||(url.searchParams.get('provider')==='apple'?'apple-private@privaterelay.appleid.com':'authorized@example.test');fixture.nextOAuthEmail='';const back=new URL(url.searchParams.get('redirect_to')!);back.searchParams.set('code','valid-oauth-code-123');return route.fulfill({status:302,headers:{location:back.href}})
   }
   if(path==='/auth/v1/token'){
    fixture.tokenCalls++;const grant=url.searchParams.get('grant_type')
    if(grant==='password'){
+    fixture.amrMethod='password'
     if(fixture.holdSignin)await fixture.holdSignin
     if(!fixture.confirmed)return send({code:'email_not_confirmed',msg:'Email not confirmed'},400)
     if(passwords.get(body.email)!==body.password)return send({code:'invalid_credentials',msg:'Invalid login'},400)

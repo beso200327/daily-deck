@@ -1,3 +1,6 @@
+import {verificationIntent,rememberVerification,reauthIntentKey} from './account-reauth'
+import {accountEvents} from './account-events'
+import {clearAccountCache} from './account-cache'
 import type {Session,SupabaseClient,User} from '@supabase/supabase-js'
 import {getSupabaseClient,supabaseConfiguration} from './supabase'
 import {AUTH_PREVIEW,authError,callbackURL,parseCallback,type AuthScreen} from './auth-policy'
@@ -62,6 +65,7 @@ export class AuthStore{
    if(callback.kind!=='none')void this.providers()
    if(this.api){const {data}=this.api.auth.onAuthStateChange((event,session)=>{
     if(event==='INITIAL_SESSION')return
+    if((session&&session.user.id!==this.state.user?.id)||(!session&&this.state.user))this.patch({identity:'checking',user:null,onboarding:null})
     // Keep SDK calls outside its auth-change callback/lock.
     const timer=setTimeout(()=>{this.timers.delete(timer);void this.adopt(session,event==='PASSWORD_RECOVERY')},0);this.timers.add(timer)
    });this.unsubscribe=()=>data.subscription.unsubscribe()}
@@ -75,6 +79,7 @@ export class AuthStore{
   try{
    const verified=await this.api!.auth.getUser(session.access_token)
    if(sequence!==this.sequence)return
+   if(verified.error?.code==='user_not_found')accountEvents.dispatchEvent(new CustomEvent('unavailable',{detail:{owner:session.user.id,state:'deleted'}}))
    if(verified.error||!verified.data.user||verified.data.user.id!==session.user.id)throw new AuthProblem('Your account session could not be verified. Sign in again, or continue locally.')
    const user={id:verified.data.user.id,email:verified.data.user.email}
    if(recovery)this.markRecovery(user.id)
@@ -82,7 +87,8 @@ export class AuthStore{
    const result=await this.api!.rpc('daily_deck_auth_status')
    if(sequence!==this.sequence)return
    let onboarding=result.error?null:status(result.data);if(onboarding?.owner_id!==user.id)onboarding=null
-   this.patch({identity:'verified',user,onboarding,screen:resetting?'reset':onboarding?.complete?'account':'onboarding',...(resetting?{open:true}:{}),...(!onboarding?{error:'Account setup is not available yet. You can still use the local deck.'}:{})})
+   const wrongVerification=verificationIntent(this.deps.storage())?.owner;const verificationError=wrongVerification&&wrongVerification!==user.id?'Verification returned a different account. No deletion was authorized. Return to the intended account or cancel the verification request.':''
+   this.patch({identity:'verified',user,onboarding,screen:resetting?'reset':onboarding?.complete?'account':'onboarding',...(resetting?{open:true}:{}),...(!onboarding?{error:'Account setup is not available yet. You can still use the local deck.'}:{}),...(verificationError?{error:verificationError}:{})})
   }catch(e){if(sequence===this.sequence)this.patch({identity:'error',user:null,onboarding:null,error:e instanceof AuthProblem?e.message:authError(e)})}
  }
  async open(screen?:AuthScreen,email?:string){screen??=this.state.user?(this.marker(this.state.user.id)?'reset':this.state.onboarding?.complete?'account':'onboarding'):'signin';this.patch({open:true,error:'',notice:'',...(screen?{screen}:{}),...(email!==undefined?{pendingEmail:email}:{})});await this.start();void this.providers()}
@@ -115,12 +121,13 @@ export class AuthStore{
  forgot=(email:string)=>this.run(async()=>{
   email=this.email(email);this.throttle(email,'recovery');const result=await this.api!.auth.resetPasswordForEmail(email,{redirectTo:callbackURL(new URL(this.deps.href()).origin,'recovery')});if(result.error)throw result.error;this.patch({notice:'If an account matches this email, a reset link will arrive. Check your inbox and spam folder. Open it in this browser.'})
  })
- oauth=(provider:'google'|'apple',age:boolean)=>this.run(async()=>{
+ oauth=(provider:'google'|'apple',age:boolean,reauth=false)=>this.run(async()=>{
   if(!age)throw new AuthProblem('Confirm that you are at least 16 before continuing.')
   if(!this.state.providers?.[provider])throw new AuthProblem('This sign-in option is unavailable. Use email instead.')
   this.marker();const redirect=callbackURL(new URL(this.deps.href()).origin,'oauth')
-  const result=await this.api!.auth.signInWithOAuth({provider,options:{redirectTo:redirect,skipBrowserRedirect:true}});if(result.error)throw result.error
+  const result=await this.api!.auth.signInWithOAuth({provider,options:{redirectTo:redirect,skipBrowserRedirect:true,...(reauth?{queryParams:{prompt:'select_account',max_age:'0'}}:{})}});if(result.error)throw result.error
   const url=new URL(result.data.url??'');if(supabaseConfiguration.status!=='configured'||url.origin!==supabaseConfiguration.url||url.username||url.password||url.hash||url.searchParams.getAll('provider').length!==1||url.searchParams.getAll('redirect_to').length!==1||url.pathname!=='/auth/v1/authorize'||url.searchParams.get('provider')!==provider||url.searchParams.get('redirect_to')!==redirect)throw new AuthProblem('This sign-in destination is not approved. Use email instead.')
+  if(reauth){if(!this.state.user)throw new AuthProblem('Sign in before verifying deletion.');rememberVerification(this.state.user.id,this.deps.storage())}
   this.deps.navigate(url.href)
  })
  resetPassword=(password:string,confirm:string)=>this.run(async()=>{
@@ -136,7 +143,10 @@ export class AuthStore{
   this.patch({onboarding,screen:'account',notice:'Preview account setup saved. Age was self-declared, not verified. Cloud storage is optional; choose a deck in Account.'})
  })
  refresh=()=>this.run(async()=>{const result=await this.api!.auth.getSession();if(result.error)throw result.error;if(!result.data.session&&this.state.identity==='error')throw new AuthProblem('Your account session is unavailable. Sign in again, or choose the local deck explicitly.');this.token='';await this.adopt(result.data.session)})
- signOut=()=>this.run(async()=>{const result=await this.api!.auth.signOut({scope:'local'});if(result.error)throw result.error;await this.adopt(null);this.patch({pendingEmail:'',screen:'signin',notice:'Signed out of this browser. Its local tasks, photos and history are unchanged.'});void this.providers()})
+ signOut=()=>this.run(async()=>{this.deps.storage()?.removeItem(reauthIntentKey);const result=await this.api!.auth.signOut({scope:'local'});if(result.error)throw result.error;await this.adopt(null);this.patch({pendingEmail:'',screen:'signin',notice:'Signed out of this browser. Its local tasks, photos and history are unchanged.'});void this.providers()})
+ invalidate(owner:string,removed=false){if(this.state.user?.id!==owner)return;this.sequence++;this.token='';this.patch({identity:'error',screen:'signin',pendingEmail:'',notice:'',user:null,onboarding:null,error:removed?'This account was deleted or deletion is in progress. Its cloud data is unavailable.':'Your account session is invalid. Sign in again. Cached cloud data is hidden.'})}
  dispose(){this.disposed=true;this.sequence++;this.unsubscribe?.();this.timers.forEach(clearTimeout);this.timers.clear();this.listeners.clear()}
 }
 export const auth=new AuthStore({enabled:AUTH_PREVIEW&&supabaseConfiguration.status==='configured',client:getSupabaseClient,href:()=>location.href,clean:()=>history.replaceState(null,'','/'),navigate:url=>location.assign(url),storage:()=>{try{return sessionStorage}catch{return undefined}}})
+
+accountEvents.addEventListener('unavailable',event=>{const {owner,state}=(event as CustomEvent).detail;auth.invalidate(owner,state!=='invalid');if(state!=='invalid')void clearAccountCache(owner).catch(()=>{})})

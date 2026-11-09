@@ -38,7 +38,7 @@ it('data-only clients retain the verified initiating token when global Auth swit
   owner = B
   token = 'synthetic-other-account-b'
   await bound.rpc('synthetic_test_only', {})
-  expect(fetch).toHaveBeenCalledOnce()
+  expect(fetch).toHaveBeenCalledTimes(2)
   expect(base.auth.getUser).toHaveBeenCalledWith(
     'synthetic-initiating-account-a'
   )
@@ -79,4 +79,12 @@ it('identity changes during session verification stop the operation', async () =
     })
   ).rejects.toThrow('Account changed')
   expect(base.auth.getUser).not.toHaveBeenCalled()
+})
+it('confirmed server errors and transport uncertainty have distinct outcomes',async()=>{
+ const {cloudError,CloudError,saveFailureMessage}=await import('../src/cloud-api')
+ expect(cloudError({code:'40001'}).outcome).toBe('conflict')
+ expect(cloudError({code:'XX000'}).outcome).toBe('rejected')
+ expect(cloudError({code:'PGRST202'}).outcome).toBe('rejected')
+ expect(cloudError({message:'Load failed'}).outcome).toBe('unknown')
+ expect(saveFailureMessage(new CloudError('No request sent','FETCH_ERROR','network'))).toContain('Save not sent')
 })

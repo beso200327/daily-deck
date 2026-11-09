@@ -174,16 +174,25 @@ After Preview onboarding, open **Account** to keep the browser-local deck, revie
 
 Server-authenticated transactional operations serialize each account, check revisions, preserve append-only history and use durable request receipts. Stale forms cannot silently overwrite a newer edit, even after a focus refresh. New tasks/today-selected habits still enter at the top. Changes are saved only after confirmation; unresolved requests have **Retry pending save**. Offline cloud copies are read-only, with no queue of new offline edits. Refresh runs on opt-in login, focus/foreground, local midnight, successful actions and manual retry, plus a visible-page fallback.
 
-Apply only the **two new cloud migrations** after owner review; no hosted SQL was run here. Exact files, ordered owner prechecks/backup/application/verification/recovery, legacy ID mapping, photo limits, conflict rules and mandatory real-user tests: [Supabase cloud guide](../../supabase/CLOUD.md). Local `.env` setup still uses only the existing two optional public variables. Vercel branch/root/framework/build settings remain unchanged; keep configuration Preview-only.
+The original cloud setup uses migrations 003/004 after owner review; do not rerun already applied migrations. Account-data operations add only migration 005 (see below); no hosted SQL was run here. Exact files, ordered owner prechecks/backup/application/verification/recovery, legacy ID mapping, photo limits, conflict rules and mandatory real-user tests: [Supabase cloud guide](../../supabase/CLOUD.md). Local `.env` setup still uses only the existing two optional public variables. Vercel branch/root/framework/build settings remain unchanged; keep configuration Preview-only.
 
 ```sh
 npm run test:cloud
 ```
 
-This browser suite uses the installed SDK and real disposable PostgreSQL authorization/transactions behind synthetic Auth/Storage HTTP; it is not hosted JWT/Storage verification. Real Safari/iPhone/Home Screen behavior, account deletion/export and approved legal documents remain release dependencies. The pre-import backup is the original guest snapshot, not a full ongoing cloud-account export.
+This browser suite uses the installed SDK and real disposable PostgreSQL authorization/transactions behind synthetic Auth/Storage HTTP; it is not hosted JWT/Storage verification. Real Safari/iPhone/Home Screen behavior, hosted account deletion/export verification and approved legal documents remain release dependencies. The pre-import backup is the original guest snapshot, not a full ongoing cloud-account export.
 
 ### Refresh and account startup
 
 Today, Habits and Progress use `#today`, `#habits` and `#progress` routes, including browser Back/Forward. Missing/invalid routes fall back to Today. Only these page names are restored; authentication callbacks are verified and scrubbed first. Callback URLs and credentials are never saved as navigation destinations.
 
 On startup, account verification and the account's saved local/cloud choice finish before the deck mounts. Cloud users see a neutral loading screen until an authoritative, owner-verified cloud read succeeds—even when the cloud deck is empty. Failed verification, unreadable preferences, or a cold-offline cloud read show retry/sign-in controls, with an explicit option to use the preserved local deck. They never automatically seed or fall back to starter cards. An already-open, verified cloud deck retains its existing read-only offline behavior. Account changes clear the rendered account deck while the next identity is checked. No existing guest data is moved or imported by these steps.
+
+
+### Account export and erasure (Preview setup required)
+
+Account now offers **Export my data** and **Delete account**. Export produces a checksummed version-1 TAR containing only the verified account's profile/preferences, cloud records/history and actual original/cropped photo files. It is separate from the pre-import guest backup, has no supported restore path, and fails explicitly above the automatic 64 MiB limit or on incomplete/concurrently changed data.
+
+Deletion requires recent verified password/Google authentication and an explicit separate confirmation. A durable server job blocks account writes and removes Storage, records/receipts and Auth identity in order. Pending/unknown outcomes are never reported as completed; a recovery-only retry cannot initiate a new deletion. The separate local guest deck and native SwiftUI/WidgetKit stores are preserved.
+
+**Operator steps in exact order, only new migration 005, Edge/Vault/Cron setup, retained-record limits, hosted verification and recovery:** [Account data guide](../../supabase/ACCOUNT_DATA.md). No hosted changes have been applied by this implementation. The worker must be healthy before deletion can start. Existing Vercel Preview public variables remain unchanged; privileged keys and the worker secret belong only to Supabase's trusted runtime, never the browser.

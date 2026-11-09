@@ -1,0 +1,4 @@
+# The handler verifies user JWTs with Auth. Worker/recovery capabilities are
+# separate, narrowly scoped credentials; browser publishable keys confer no admin access.
+[functions.account-data]
+verify_jwt = false

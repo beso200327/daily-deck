@@ -1,3 +1,4 @@
+import {accountUnavailable} from './account-events'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import * as D from './deck'
 import { supabaseConfiguration } from './supabase'
@@ -45,7 +46,8 @@ export type CloudRequest = {
 export class CloudError extends Error {
   constructor(
     message: string,
-    public code = ''
+    public code = '',
+    public outcome: 'conflict'|'rejected'|'network'|'unknown'|'auth' = code==='40001'?'conflict':code==='42501'||code==='PGRST301'?'auth':code==='TIMEOUT'||code==='FETCH_ERROR'?'network':/^[0-9A-Z]{5}$/.test(code)?'rejected':'unknown'
   ) {
     super(message)
   }
@@ -58,7 +60,7 @@ export function cloudError(error: unknown) {
   if (code === 'PGRST202')
     return new CloudError(
       'Cloud storage is not ready here. Keep using your local deck until setup is complete.',
-      code
+      code,'rejected'
     )
   if (code === '40001')
     return new CloudError(
@@ -84,6 +86,8 @@ export function cloudError(error: unknown) {
       'The cloud rejected this change. Refresh and review the task or photo before trying again. No history was overwritten.',
       code
     )
+  if (/^[0-9A-Z]{5}$/.test(code) || /^PGRST\d+$/.test(code))
+    return new CloudError('The server rejected this request ('+code+'). Your draft was not applied. Review it and retry after resolving the error.',code,'rejected')
   return new CloudError(
     'Cloud save could not be confirmed. Check your connection and retry the pending save. Do not create another copy.',
     code
@@ -142,6 +146,7 @@ export async function bindAccountClient(
   check()
   const session = await verifyWithin(base.auth.getSession())
   check()
+  if(session.error && (!session.error.status||session.error.status>=500))throw new CloudError('Account verification could not connect. No change request was sent.','FETCH_ERROR','network')
   if (
     session.error ||
     !session.data.session ||
@@ -154,16 +159,21 @@ export async function bindAccountClient(
   const token = session.data.session.access_token,
     verified = await verifyWithin(base.auth.getUser(token))
   check()
-  if (verified.error || verified.data.user?.id !== owner)
+  if (verified.error || verified.data.user?.id !== owner){
+    const error=verified.error as {status?:number;code?:string}|null
+    if(error&&(!error.status||error.status>=500))throw new CloudError('Account verification could not connect. No change request was sent.','FETCH_ERROR','network')
+    if(error?.code==='user_not_found')accountUnavailable(owner,'deleted')
+    else if(error?.status===401||['bad_jwt','session_not_found'].includes(error?.code??''))accountUnavailable(owner,'invalid')
     throw new CloudError(
       'Your cloud account could not be verified. Reconnect or sign in again.',
       '42501'
     )
+  }
   if (supabaseConfiguration.status !== 'configured')
     throw new CloudError('Cloud storage is unavailable in this build.')
   const { createClient } = await import('@supabase/supabase-js')
   check()
-  return createClient(supabaseConfiguration.url, supabaseConfiguration.key, {
+  const client=createClient(supabaseConfiguration.url, supabaseConfiguration.key, {
     accessToken: async () => token,
     global: { fetch: boundedFetch(check) },
     auth: {
@@ -172,6 +182,14 @@ export async function bindAccountClient(
       detectSessionInUrl: false
     }
   })
+  const lifecycle=await client.rpc('daily_deck_lifecycle_status')
+  check()
+  if(!lifecycle.error&&lifecycle.data?.owner_id===owner&&['invalid','deleting','deleted'].includes(lifecycle.data.state)){
+    accountUnavailable(owner,lifecycle.data.state)
+    throw new CloudError('Account deletion is in progress or complete. Cloud data is no longer available.','PDA01')
+  }
+  if(lifecycle.error&&lifecycle.error.code!=='PGRST202')throw cloudError(lifecycle.error)
+  return client
 }
 export async function syncRequest(
   client: SupabaseClient,
@@ -185,14 +203,18 @@ export async function syncRequest(
     p_args: request.args,
     p_timezone: request.timezone
   })
+  if(result.error?.code==='PDA01')accountUnavailable(request.owner,'deleting')
   if (result.error) throw cloudError(result.error)
-  const s = result.data as CloudSnapshot
+  return validateSnapshot(result.data,request.owner)
+}
+export function validateSnapshot(value:unknown,owner:string):CloudSnapshot{
+  const s=value as CloudSnapshot
   if (
-    s?.owner_id !== request.owner ||
+    s?.owner_id !== owner ||
     !Number.isSafeInteger(s.revision) ||
     s.revision < 0 ||
     !Array.isArray(s.photos) ||
-    s.photos.some((p) => p.owner_id !== request.owner)
+    s.photos.some((p) => p.owner_id !== owner)
   )
     throw new CloudError(
       'The cloud response could not be verified. No device data was changed.'
@@ -418,4 +440,9 @@ export async function cleanupPhoto(
         'Some files remain or became referenced. Refresh before retrying cleanup.'
       )
   }
+}
+
+export function saveFailureMessage(error:unknown){
+ const prefix=error instanceof CloudError?({conflict:'Save conflict. ',rejected:'Save rejected. ',network:'Save not sent: connection unavailable. ',auth:'Sign-in required. ',unknown:'Save not confirmed. '}[error.outcome]):'Save not confirmed. '
+ return prefix+(error instanceof Error?error.message:'Check your connection and retry the original request.')
 }

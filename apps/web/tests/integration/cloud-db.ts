@@ -48,7 +48,7 @@ export function sql(statement: string, owner?: string) {
     'dailydeck_test',
     '-c',
     owner
-      ? `begin;set local role authenticated;set local "request.jwt.claim.sub"=${quote(owner)};${statement};commit;`
+      ? `begin;set local role authenticated;set local "request.jwt.claim.sub"=${quote(owner)};set local "request.jwt.claims"=${quote(JSON.stringify({sub:owner,role:"authenticated",session_id:owner}))};${statement};commit;`
       : statement
   ]).trim()
 }
@@ -116,6 +116,6 @@ export async function setup() {
 export default setup
 export function reset() {
   sql(
-    `delete from storage.objects;delete from auth.users;update daily_deck_private.auth_configuration set mode='preview';insert into auth.users(id) values('11111111-1111-1111-1111-111111111111'),('22222222-2222-2222-2222-222222222222');insert into public.daily_deck_profiles(owner_id,age_self_declared_at,preview_acknowledged_at,onboarding_kind) select id,now(),now(),'preview_test' from auth.users;`
+    `delete from daily_deck_private.account_deletions;delete from storage.objects;delete from auth.users;update daily_deck_private.auth_configuration set mode='preview';insert into auth.users(id) values('11111111-1111-1111-1111-111111111111'),('22222222-2222-2222-2222-222222222222');insert into auth.sessions(id,user_id) select id,id from auth.users;insert into public.daily_deck_profiles(owner_id,age_self_declared_at,preview_acknowledged_at,onboarding_kind) select id,now(),now(),'preview_test' from auth.users;set local "request.jwt.claims"='{"role":"service_role"}';select public.daily_deck_delete_queue();`
   )
 }
