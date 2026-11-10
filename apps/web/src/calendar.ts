@@ -6,7 +6,7 @@ export function watchLocalCalendar(reconcile:()=>void){
  function resume(){if(document.visibilityState==='visible'){reconcile();schedule()}}
  function storage(e:StorageEvent){if(e.key===null||e.key?.startsWith('daily-deck.web.v1'))resume()}
  const poll=setInterval(()=>{if(document.visibilityState==='visible'){reconcile();schedule()}},30_000)
- document.addEventListener('visibilitychange',resume);window.addEventListener('focus',resume);window.addEventListener('pageshow',resume);window.addEventListener('storage',storage)
+ document.addEventListener('visibilitychange',resume);window.addEventListener('online',resume);window.addEventListener('focus',resume);window.addEventListener('pageshow',resume);window.addEventListener('storage',storage)
  reconcile();schedule()
- return()=>{stopped=true;clearTimeout(midnight);clearInterval(poll);document.removeEventListener('visibilitychange',resume);window.removeEventListener('focus',resume);window.removeEventListener('pageshow',resume);window.removeEventListener('storage',storage)}
+ return()=>{stopped=true;clearTimeout(midnight);clearInterval(poll);document.removeEventListener('visibilitychange',resume);window.removeEventListener('online',resume);window.removeEventListener('focus',resume);window.removeEventListener('pageshow',resume);window.removeEventListener('storage',storage)}
 }

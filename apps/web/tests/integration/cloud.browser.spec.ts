@@ -839,3 +839,55 @@ test('Google verification returning a different account cannot authorize deletio
  await page.getByRole('button',{name:'Delete account',exact:true}).click();const confirmation=page.getByRole('dialog',{name:'Delete account?',exact:true});await expect(confirmation).toContainText('second@example.test');await confirmation.getByRole('button',{name:'Permanently delete account',exact:true}).click();await expect(confirmation.getByRole('alert')).toContainText('different account')
  expect(sql('select count(*) from auth.users')).toBe('2');expect(sql('select count(*) from daily_deck_private.account_deletions')).toBe('0');await confirmation.getByRole('button',{name:'Cancel',exact:true}).click()
 })
+
+
+test('pre-dispatch disconnect preserves draft, permits retry, and never locks close, foreground or reload',async({page},info)=>{
+ const b=backend();await b.install(page);await ready(page);await openCloud(page);await create(page,'Confirmed cloud task')
+ const guest=await local(page)
+ await page.getByRole('button',{name:'Edit current task',exact:true}).click()
+ await page.getByLabel('Title',{exact:true}).fill('Internet test')
+ b.state.verificationOffline=true
+ await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await expect(page.getByRole('dialog').getByRole('alert').first()).toContainText('Save not sent',{timeout:30000})
+ await expect(page.getByLabel('Title',{exact:true})).toHaveValue('Internet test')
+ expect(await page.evaluate(()=>Object.keys(localStorage).filter(k=>k.includes('.pending.')))).toHaveLength(0)
+ await page.screenshot({path:`/tmp/dailydeck-offline-draft-${info.project.name}.png`})
+ b.state.verificationOffline=false
+ await page.evaluate(()=>window.dispatchEvent(new Event('online')))
+ await expect(page.getByRole('button',{name:'Save task',exact:true})).toBeEnabled()
+ await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await expect(page.getByRole('dialog')).toHaveCount(0);await expect(active(page).locator('h2')).toHaveText('Internet test')
+ await page.getByRole('button',{name:'Edit current task',exact:true}).click()
+ await page.getByLabel('Title',{exact:true}).fill('Unsent draft closed')
+ b.state.verificationOffline=true
+ await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await expect(page.getByRole('dialog').getByRole('alert').first()).toContainText('Save not sent',{timeout:30000})
+ await page.getByRole('dialog').getByRole('button',{name:'Close dialog',exact:true}).click()
+ b.state.verificationOffline=false
+ await page.evaluate(()=>{window.dispatchEvent(new Event('pageshow'));window.dispatchEvent(new Event('online'));document.dispatchEvent(new Event('visibilitychange'))})
+ await expect(page.getByRole('button',{name:'Later',exact:true})).toBeEnabled()
+ await page.getByRole('button',{name:'Later',exact:true}).click()
+ await expect(page.getByRole('button',{name:'Done',exact:true})).toBeEnabled()
+ await page.reload();await expect(active(page).locator('h2')).toHaveText('Internet test')
+ await page.getByRole('button',{name:'Edit current task',exact:true}).click();await expect(page.getByLabel('Title',{exact:true})).toHaveValue('Internet test')
+ await close(page);await page.screenshot({path:`/tmp/dailydeck-offline-restored-${info.project.name}.png`});await page.getByRole('button',{name:'Done',exact:true}).click();await expect(page.getByText('That’s your deck.',{exact:true})).toBeVisible()
+ expect(await local(page)).toBe(guest)
+})
+
+for(const committed of [true,false])test(`legacy unresolved request is recoverable from Today after reload without opening a locked editor (committed=${committed})`,async({page})=>{
+ const b=backend();await b.install(page);await ready(page);await openCloud(page);await create(page,'Original cloud task')
+ await page.getByRole('button',{name:'Edit current task',exact:true}).click();await page.getByLabel('Title',{exact:true}).fill('Recovered original transaction')
+ b.state.dropAfterCommit=committed;b.state.dropBeforeCommit=!committed;b.state.statusOffline=true
+ await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await expect(page.getByRole('button',{name:'Retry pending cloud save',exact:true})).toBeEnabled()
+ const original=await page.evaluate(()=>Object.keys(localStorage).find(k=>k.includes('.pending.')))
+ await page.getByRole('dialog').getByRole('button',{name:'Close dialog',exact:true}).click()
+ await expect(page.getByRole('button',{name:'Recover pending save',exact:true})).toBeEnabled()
+ await page.reload();await expect(page.getByRole('button',{name:'Recover pending save',exact:true})).toBeEnabled()
+ b.state.statusOffline=false
+ await page.getByRole('button',{name:'Recover pending save',exact:true}).click()
+ await expect(page.getByRole('button',{name:'Recover pending save',exact:true})).toHaveCount(0)
+ await expect(active(page).locator('h2')).toHaveText('Recovered original transaction')
+ expect(await page.evaluate(k=>localStorage.getItem(k!),original)).toBeNull()
+ await expect(page.getByRole('button',{name:'Done',exact:true})).toBeEnabled()
+})

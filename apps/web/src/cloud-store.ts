@@ -67,6 +67,7 @@ export class CloudStore {
   private uid: string | undefined
   private stop: (() => void) | undefined
   private queue: Promise<unknown> = Promise.resolve()
+  private retryFlight: Promise<CloudSnapshot> | null = null
   private staged: Transfer | undefined
   constructor(private deps: Dependencies) {}
   snapshot = () => this.state
@@ -92,6 +93,7 @@ export class CloudStore {
     this.uid = uid
     this.epoch++
     this.confirmedRevision = -1
+    this.retryFlight = null
     this.staged = undefined
     setPhotoScope()
     this.state = {
@@ -328,6 +330,7 @@ export class CloudStore {
     }
     this.epoch++
     this.confirmedRevision = -1
+    this.retryFlight = null
     this.staged = undefined
     setPhotoScope()
     this.patch({
@@ -475,7 +478,9 @@ export class CloudStore {
         }catch{/* Preserve the original request ID until a receipt can be checked. */}
       }
       const code=failure instanceof CloudError?failure.code:''
-      if((code==='PHOTO'&&!retrying)||(sent && failure instanceof CloudError && ['conflict','rejected'].includes(failure.outcome)))this.savePending(null,p.owner,p.id)
+      // Release only a newly prepared request known never to have reached sync.
+      // A preflight failure on a RETRY must retain the original unknown request.
+      if((!sent&&!retrying)||(code==='PHOTO'&&!retrying)||(sent && failure instanceof CloudError && ['conflict','rejected'].includes(failure.outcome)))this.savePending(null,p.owner,p.id)
       this.recordOutcome(p,failure instanceof CloudError?failure.outcome:'unknown',code)
       this.patch({
         phase: 'error',
@@ -488,7 +493,16 @@ export class CloudStore {
   private recordOutcome(p:CloudRequest,outcome:string,code:string){
     try{const storage=this.deps.storage(),name=key(p.owner,'outcomes');let rows=[];try{const value=JSON.parse(storage.getItem(name)??'[]');rows=Array.isArray(value)?value:[]}catch{};storage.setItem(name,JSON.stringify([...rows.filter((r:{id:string})=>r.id!==p.id),{id:p.id,outcome,code,at:new Date().toISOString()}].slice(-20)))}catch{/* Never drop the durable pending request because diagnostics cannot be retained. */}
   }
-  async retry() {
+  retry(): Promise<CloudSnapshot> {
+    if (this.retryFlight) return this.retryFlight
+    const owner=this.owner(), epoch=this.epoch
+    const work = this.queue.then(() => {this.check(owner,epoch);return this.retryPending()})
+    this.retryFlight = work
+    this.queue = work.catch(() => {})
+    void work.then(() => {if(this.retryFlight===work)this.retryFlight=null}, () => {if(this.retryFlight===work)this.retryFlight=null})
+    return work
+  }
+  private async retryPending() {
     const owner = this.owner(),
       epoch = this.epoch,
       p = this.state.pending ?? this.readPending(owner)

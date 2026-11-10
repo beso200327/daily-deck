@@ -2,6 +2,7 @@ import { it, expect, vi, afterEach } from 'vitest'
 import * as D from '../src/deck'
 import { commandBetween, mapImport, mappedId } from '../src/cloud-model'
 import { CloudStore } from '../src/cloud-store'
+import { CloudError } from '../src/cloud-api'
 import { photoScope } from '../src/photos'
 vi.mock('../src/supabase', () => ({
   supabaseConfiguration: { status: 'missing' },
@@ -26,6 +27,7 @@ function fixture() {
     remote = empty(),
     revision = 0,
     offline = false,
+    verificationOffline = false,
     statusOffline=false,
     drop = false,
     hold: Promise<void> | null = null
@@ -79,13 +81,14 @@ function fixture() {
       }
     })
   }
-  const store = new CloudStore({
+  const makeStore = () => new CloudStore({
     client: async () => api as any,
     identity: () => owner,
     storage: () => storage,
     zone: () => 'UTC',
-    bind: async (api) => api
+    bind: async (api) => {if(verificationOffline)throw new CloudError('No change request was sent.','FETCH_ERROR','network');return api}
   })
+  const store = makeStore()
   store.identityChanged()
   return {
     store,
@@ -98,6 +101,8 @@ function fixture() {
       owner = id
       store.identityChanged()
     },
+    reopen: makeStore,
+    verificationOffline: (v: boolean) => (verificationOffline = v),
     offline: (v: boolean) => (offline = v),
     drop: () => (drop = true),
     statusOffline:(v:boolean)=>(statusOffline=v),
@@ -393,4 +398,51 @@ it('unknown request IDs survive failed receipt checks; an advanced revision late
  await expect(f.store.retry()).rejects.toMatchObject({code:'40001',outcome:'conflict'})
  expect(f.store.snapshot().pending).toBeNull();expect(f.remote().tasks).toHaveLength(0)
  expect(f.map.get(`daily-deck.cloud.${A}.outcomes.v1`)).toContain(id)
+})
+
+
+it('releases a new journal after pre-dispatch verification failure; retry and reload remain usable', async()=>{
+ const f=fixture();await f.store.open();f.verificationOffline(true)
+ await expect(f.store.transact(d=>D.saveTask(d,task()))).rejects.toThrow('No change request')
+ expect(f.store.snapshot().phase).toBe('error');expect(f.store.snapshot().pending).toBeNull()
+ expect(f.calls.filter(c=>c.p.p_operation==='save')).toHaveLength(0)
+ expect([...f.map.keys()].filter(k=>k.includes('.pending.'))).toHaveLength(0)
+ f.verificationOffline(false)
+ await f.store.transact(d=>D.saveTask(d,task()))
+ const reopened=f.reopen();await reopened.open()
+ expect(reopened.snapshot().snapshot?.deck.tasks).toHaveLength(1)
+ expect(reopened.snapshot().pending).toBeNull()
+ await reopened.transact(d=>D.act(d,d.cards[0].id,'later'))
+})
+it('preflight failure during recovery keeps an unknown original ID; concurrent retries reconcile once after reload',async()=>{
+ const f=fixture();await f.store.open();f.drop();f.statusOffline(true)
+ await expect(f.store.transact(d=>D.saveTask(d,task()))).rejects.toThrow()
+ const original=f.store.snapshot().pending!;expect(original).toBeTruthy()
+ f.verificationOffline(true);await expect(f.store.retry()).rejects.toThrow('No change request')
+ expect(f.store.snapshot().pending?.id).toBe(original.id)
+ f.verificationOffline(false);f.statusOffline(false)
+ const reopened=f.reopen();await reopened.open();expect(reopened.snapshot().pending?.id).toBe(original.id)
+ const a=reopened.retry(),b=reopened.retry();expect(a).toBe(b);await Promise.all([a,b])
+ expect(reopened.snapshot().pending).toBeNull();expect(f.remote().tasks).toHaveLength(1)
+ expect(f.calls.filter(c=>c.p.p_operation==='save')).toHaveLength(1)
+})
+it('legacy pre-dispatch journals recover with their original transaction and preserve stale revision protection',async()=>{
+ const f=fixture();await f.store.open();f.offline(true)
+ await expect(f.store.transact(d=>D.saveTask(d,task()))).rejects.toThrow()
+ const p=f.store.snapshot().pending!;expect(p).toBeTruthy()
+ f.offline(false);f.conflict()
+ const reopened=f.reopen();await reopened.open()
+ await expect(reopened.retry()).rejects.toThrow('cloud changed')
+ expect(reopened.snapshot().pending).toBeNull();expect(f.remote().tasks).toHaveLength(0)
+})
+it('a retry that loses verification after an absent receipt retains the original journal',async()=>{
+ const f=fixture();await f.store.open();f.offline(true)
+ await expect(f.store.transact(d=>D.saveTask(d,task()))).rejects.toThrow()
+ const id=f.store.snapshot().pending!.id;f.offline(false)
+ const original=f.api.rpc.getMockImplementation()!
+ f.api.rpc.mockImplementationOnce(async(name,p)=>{const result=await original(name,p);f.verificationOffline(true);return result})
+ await expect(f.store.retry()).rejects.toThrow('No change request')
+ expect(f.store.snapshot().pending?.id).toBe(id)
+ f.verificationOffline(false);await f.store.retry()
+ expect(f.store.snapshot().pending).toBeNull();expect(f.remote().tasks).toHaveLength(1)
 })

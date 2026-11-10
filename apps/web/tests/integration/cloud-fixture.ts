@@ -7,7 +7,9 @@ export function backend() {
     calls: { owner: string; path: string; body: any }[] = []
   const state = {
     dropAfterCommit: false,
+    dropBeforeCommit: false,
     offline: false,
+    verificationOffline: false,
     hold: null as null | Promise<void>,
     holdSaveTitle: '',
     holdSave: null as null | Promise<void>,
@@ -69,6 +71,7 @@ export function backend() {
       return true
     }
     if(path==='/auth/v1/user'){
+      if(state.verificationOffline){await route.abort();return true}
       if(owner&&sql(`select exists(select 1 from auth.users where id=${quote(owner)}::uuid)`)==='f')return send({code:'user_not_found',msg:'Account deleted'},401)
       return false
     }
@@ -104,6 +107,7 @@ export function backend() {
         if (state.hold) await state.hold
         if(state.holdSave && body.p_operation==='save' && body.p_args?.task?.title===state.holdSaveTitle)await state.holdSave
         let statement: string
+        if(state.dropBeforeCommit&&body.p_operation==='save'){state.dropBeforeCommit=false;await route.abort();return true}
         if (path.endsWith('daily_deck_sync'))
           statement = `select public.daily_deck_sync(${quote(body.p_expected_user)}::uuid,${quote(body.p_operation)},${quote(body.p_request_id)}::uuid,${quote(body.p_revision)}::bigint,${quote(JSON.stringify(body.p_args))}::jsonb,${quote(body.p_timezone)})`
         else if (path.endsWith('daily_deck_sync_status'))
