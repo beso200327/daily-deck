@@ -1,5 +1,5 @@
 import { useRef, useState, useSyncExternalStore } from 'react'
-import { cloud } from './cloud-store'
+import { cloud, needsCloudRecovery } from './cloud-store'
 export const useCloud = () =>
   useSyncExternalStore(cloud.subscribe, cloud.snapshot)
 export function CloudControls() {
@@ -126,7 +126,7 @@ export function CloudControls() {
             Retry sync
           </button>
         )}
-        {s.pending && (
+        {needsCloudRecovery(s) && (
           <button
             type="button"
             className="primary"

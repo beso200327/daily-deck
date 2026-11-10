@@ -110,3 +110,5 @@ html[data-modal-open=true] body,html[data-modal-open=true] .app-shell{min-inline
 .editor-save-feedback{margin:4px 0 20px;padding:4px;flex:0 0 100%;width:100%;min-width:0;overflow-wrap:anywhere}.editor-save-feedback p{margin:0 0 8px}.editor-save-feedback .photo-actions{gap:8px;flex-wrap:wrap}.editor-save-feedback textarea{width:100%;min-width:0;max-height:100px}.editor-save-feedback:focus{outline:2px solid #6f812d;outline-offset:3px;border-radius:8px}
 .deletion-recovery{position:fixed;z-index:30;right:16px;bottom:calc(90px + env(safe-area-inset-bottom));max-width:calc(100vw - 32px);padding:6px;background:#faf8f2;border:1px solid var(--line);border-radius:16px;box-shadow:0 5px 20px #2b2c2420}.deletion-recovery button{max-width:100%;white-space:normal}
 .account-delete-action{background:#923929;color:#fff}.account-delete-action:hover:not(:disabled){background:#7e3025}
+
+.cloud-save-indicator{position:absolute;top:calc(100% + 4px);right:0;font-size:.75rem;color:var(--muted);white-space:nowrap;pointer-events:none}

@@ -446,3 +446,27 @@ it('a retry that loses verification after an absent receipt retains the original
  f.verificationOffline(false);await f.store.retry()
  expect(f.store.snapshot().pending).toBeNull();expect(f.remote().tasks).toHaveLength(1)
 })
+
+it('publishes healthy save journals atomically as saving, never as recovery',async()=>{
+ const f=fixture();await f.store.open()
+ const {needsCloudRecovery}=await import('../src/cloud-store')
+ const observed:{phase:string;pending:boolean;recovery:boolean}[]=[]
+ const stop=f.store.subscribe(()=>{const s=f.store.snapshot();observed.push({phase:s.phase,pending:!!s.pending,recovery:needsCloudRecovery(s)})})
+ await f.store.transact(d=>D.saveTask(d,task()))
+ await f.store.transact(d=>D.act(d,d.cards[0].id,'later'))
+ await f.store.transact(d=>D.act(d,d.cards[0].id,'done'))
+ stop();expect(observed.some(s=>s.pending&&s.phase==='saving')).toBe(true)
+ expect(observed.some(s=>s.recovery)).toBe(false)
+ expect(D.outcome(f.remote().cards[0],D.dayKey())).toBe('completed')
+})
+it('recovery distinguishes active writes and owner-gated loading from unresolved saved requests',async()=>{
+ const f=fixture();await f.store.open();f.drop();f.statusOffline(true)
+ const {needsCloudRecovery}=await import('../src/cloud-store')
+ await expect(f.store.transact(d=>D.saveTask(d,task()))).rejects.toThrow()
+ const unknown=f.store.snapshot();expect(needsCloudRecovery(unknown)).toBe(true)
+ expect(needsCloudRecovery({...unknown,phase:'saving'})).toBe(false)
+ expect(needsCloudRecovery({...unknown,phase:'loading'})).toBe(false)
+ expect(needsCloudRecovery({...unknown,phase:'ready'})).toBe(true)
+ expect(needsCloudRecovery({...unknown,scope:'local'})).toBe(false)
+ f.statusOffline(false);await f.store.retry();expect(needsCloudRecovery(f.store.snapshot())).toBe(false)
+})

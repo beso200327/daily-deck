@@ -891,3 +891,33 @@ for(const committed of [true,false])test(`legacy unresolved request is recoverab
  expect(await page.evaluate(k=>localStorage.getItem(k!),original)).toBeNull()
  await expect(page.getByRole('button',{name:'Done',exact:true})).toBeEnabled()
 })
+
+test('ordinary online swipes show saving, never recovery, and persist exactly once',async({page},info)=>{
+ const b=backend();await b.install(page);await ready(page);await openCloud(page)
+ await create(page,'Online swipe one');await create(page,'Online swipe two')
+ await page.evaluate(()=>{
+  const seen:string[]=[];(window as any).recoveryFlashes=seen
+  const inspect=()=>{for(const el of document.querySelectorAll('.error-banner'))if(el.textContent?.includes('A cloud save needs recovery'))seen.push(el.textContent)}
+  new MutationObserver(inspect).observe(document.body,{subtree:true,childList:true,characterData:true});inspect()
+ })
+ for(const direction of ['later','done'] as const){
+  let release!:()=>void;b.state.hold=new Promise<void>(r=>release=r)
+  const card=await active(page).boundingBox();if(!card)throw new Error('No active card')
+  const x=card.x+card.width/2,y=card.y+card.height/2
+  await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+(direction==='later'?-1:1)*Math.min(240,card.width*.7),y,{steps:10});await page.mouse.up()
+  await expect.poll(()=>b.calls.filter(c=>c.body.p_operation==='action').length).toBe(direction==='later'?1:2)
+  await expect(page.getByRole('status').filter({hasText:/^Saving…$/})).toBeVisible()
+  await expect(page.getByRole('button',{name:'Done',exact:true})).toBeDisabled()
+  await expect(page.getByRole('button',{name:'Recover pending save',exact:true})).toHaveCount(0)
+  await page.screenshot({path:`/tmp/dailydeck-online-saving-${direction}-${info.project.name}.png`})
+  release();b.state.hold=null
+  await expect(page.getByRole('button',{name:'Done',exact:true})).toBeEnabled()
+ }
+ expect(await page.evaluate(()=>(window as any).recoveryFlashes)).toEqual([])
+ const writes=b.calls.filter(c=>c.body.p_operation==='action')
+ expect(writes).toHaveLength(2);expect(new Set(writes.map(c=>c.body.p_request_id)).size).toBe(2)
+ expect(sql("select count(*) from public.daily_deck_events where action='done'",'11111111-1111-1111-1111-111111111111')).toBe('1')
+ expect(sql("select count(*) from public.daily_deck_events where action='later'",'11111111-1111-1111-1111-111111111111')).toBe('1')
+ await page.reload();await expect(active(page).locator('h2')).toHaveText('Online swipe two')
+ await expect(page.getByRole('button',{name:'Recover pending save',exact:true})).toHaveCount(0)
+})

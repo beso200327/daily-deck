@@ -32,3 +32,9 @@ New requests known not to have reached the task sync RPC now release only their 
 Old journals cannot safely be assumed unsent. Today now exposes **Recover pending save** when no editor is open, including after reload. It checks the existing owner-bound receipt, confirms an applied write, retries an unapplied request with the same ID/revision, or reports a confirmed stale conflict. It never discards an unknown request merely because the browser is online, nor requires clearing site data. The online event also triggers the existing ownership-verified foreground reconciliation. Closing a draft without saving still cancels its unsaved form edits; no draft autosave or guest fallback was added.
 
 Safe support diagnostics, only if needed: Preview URL, browser/iOS version, approximate time, displayed error category/code, and whether recovery remains visible. Do not share access/refresh tokens, headers, task text, photos, localStorage dumps, or full archive contents.
+
+### Ordinary online saves versus recovery
+
+A durable pending journal is expected during every normal write; it is not evidence of an uncertain outcome. The first recovery banner incorrectly tested `pending` alone, so every swipe displayed recovery while awaiting its successful response. There was also a synchronous observer transition from `ready + pending` to `saving + pending`.
+
+Journal persistence now publishes `saving + pending` atomically. The shared `needsCloudRecovery` predicate distinguishes active saving/owner-gated loading from an idle unresolved journal, and is used by the deck banner, editor recovery buttons and account recovery control. A small accessible Saving indicator does not move the layout. Unknown requests that settle into error/offline, and unresolved journals restored into a verified ready deck, still expose recovery. Nothing changes the receipt lookup, ID reuse, revision checks or pre-dispatch reconnect fix.

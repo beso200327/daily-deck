@@ -47,6 +47,9 @@ type Dependencies = {
 }
 const key = (owner: string, kind: string) =>
   `daily-deck.cloud.${owner}.${kind}.v1`
+// A journal is also present during healthy writes. Only an idle unresolved
+// journal needs user recovery; loading must verify ownership/data first.
+export const needsCloudRecovery = (s: CloudState) => s.scope !== 'local' && !!s.pending && s.phase !== 'saving' && s.phase !== 'loading'
 export class CloudStore {
   private state: CloudState = {
     selectionReady: false,
@@ -207,7 +210,7 @@ export class CloudStore {
       prefix = key(owner, 'pending')
     if (p) {
       storage.setItem(prefix + '.' + p.id, JSON.stringify(p))
-      this.patch({ pending: p })
+      this.patch({ pending: p, phase: 'saving', error: '' })
     } else {
       if (!id) throw new Error('Missing receipt ID')
       storage.removeItem(prefix + '.' + id)
