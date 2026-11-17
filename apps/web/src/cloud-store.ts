@@ -24,10 +24,11 @@ export type CloudState = {
   selectionReady: boolean
   scope: string
   owner: string | null
-  phase: 'local' | 'loading' | 'ready' | 'saving' | 'offline' | 'error'
+  phase: 'local' | 'loading' | 'ready' | 'saving' | 'offline' | 'error' | 'conflict'
   snapshot: CloudSnapshot | null
   error: string
   pending: CloudRequest | null
+  conflict: CloudRequest | null
   preparing: boolean
   summary: {
     tasks: number
@@ -49,7 +50,7 @@ const key = (owner: string, kind: string) =>
   `daily-deck.cloud.${owner}.${kind}.v1`
 // A journal is also present during healthy writes. Only an idle unresolved
 // journal needs user recovery; loading must verify ownership/data first.
-export const needsCloudRecovery = (s: CloudState) => s.scope !== 'local' && !!s.pending && s.phase !== 'saving' && s.phase !== 'loading'
+export const needsCloudRecovery = (s: CloudState) => (s.scope !== 'local' || s.pending?.operation === 'import') && !!s.pending && !s.conflict && s.phase !== 'saving' && s.phase !== 'loading'
 export class CloudStore {
   private state: CloudState = {
     selectionReady: false,
@@ -59,6 +60,7 @@ export class CloudStore {
     snapshot: null,
     error: '',
     pending: null,
+    conflict: null,
     preparing: false,
     summary: null,
     existing: null,
@@ -107,6 +109,7 @@ export class CloudStore {
       snapshot: null,
       error: '',
       pending: null,
+      conflict: null,
       preparing: false,
       summary: null,
       existing: null,
@@ -115,6 +118,7 @@ export class CloudStore {
     try {
       if (uid) {
         this.state.pending = this.readPending(uid)
+        this.state.conflict = this.readConflict(uid)
         if (this.deps.storage().getItem(key(uid, 'mode')) === 'cloud') {
           void this.open().catch(e => {
             if (this.uid === uid && this.state.scope === 'local') this.patch({error: e instanceof Error ? e.message : 'Cloud unavailable.'})
@@ -205,6 +209,44 @@ export class CloudStore {
       values.find((p) => p.id === this.state.pending?.id) ?? values[0] ?? null
     )
   }
+  private conflictError() {
+    return new CloudError('The cloud deck changed in another browser or the requested action is no longer available. This request was not applied. Your draft is preserved. Review the current cloud deck, then reopen the task before saving again.', 'PT409')
+  }
+  private readConflict(owner: string): CloudRequest | null {
+    const raw = this.deps.storage().getItem(key(owner, 'conflict'))
+    if (!raw) return null
+    const p = JSON.parse(raw) as CloudRequest
+    if (p.owner !== owner || typeof p.id !== 'string' || !Number.isSafeInteger(p.revision) || !p.args || typeof p.args !== 'object')
+      throw new CloudError('The preserved conflict draft is unreadable. Keep browser data for recovery.')
+    return p
+  }
+  private retainConflict(p: CloudRequest) {
+    // Retain the rejected intent and original transaction ID separately from
+    // unknown-outcome journals. Neither refresh nor reload may resubmit it.
+    this.patch({ conflict: p, phase: 'conflict', error: this.conflictError().message })
+    try {
+      this.deps.storage().setItem(key(p.owner, 'conflict'), JSON.stringify(p))
+    } catch {
+      const error = new CloudError('The change was rejected, but this browser could not retain its review state. Your original request is preserved. Free browser storage before recovery.', 'PT409')
+      this.patch({ error: error.message })
+      throw error
+    }
+  }
+  async reviewConflict() {
+    const owner = this.owner(), epoch = this.epoch, conflict = this.state.conflict
+    if (!conflict) return this.refresh()
+    const { api, s } = await this.readFor(owner, epoch)
+    await this.accept(api, s, epoch)
+    this.check(owner, epoch)
+    if (this.readConflict(owner)?.id !== conflict.id || this.state.conflict?.id !== conflict.id) throw this.conflictError()
+    // Explicit review releases the block only after an authoritative read.
+    // An open editor retains its original base revision and unsaved fields.
+    if (this.readPending(owner)?.id === conflict.id) this.savePending(null, owner, conflict.id)
+    this.deps.storage().removeItem(key(owner, 'conflict'))
+    if (conflict.operation === 'import') this.staged = undefined
+    this.patch({ conflict: null, summary: null, phase: this.state.scope === owner ? 'ready' : 'local', error: '', notice: 'Current cloud deck loaded for review. Copy any unsaved draft, then cancel and reopen the task; rejected changes were not replayed.' })
+    return s
+  }
   private savePending(p: CloudRequest | null, owner: string, id?: string) {
     const storage = this.deps.storage(),
       prefix = key(owner, 'pending')
@@ -238,7 +280,7 @@ export class CloudStore {
     if (s.revision < this.confirmedRevision && this.state.snapshot)
       return this.state.snapshot
     this.confirmedRevision = s.revision
-    this.patch({ snapshot: s, phase: 'ready', error: photoError })
+    this.patch({ snapshot: s, phase: this.state.conflict ? 'conflict' : 'ready', error: this.state.conflict ? this.state.error : photoError })
     try {
       this.deps.storage().setItem(key(s.owner_id, 'cache'), JSON.stringify(s))
     } catch {
@@ -291,6 +333,7 @@ export class CloudStore {
       error: '',
       summary: null,
       pending,
+      conflict: this.readConflict(owner),
       notice: ''
     })
     try {
@@ -342,6 +385,7 @@ export class CloudStore {
       snapshot: null,
       phase: 'local',
       pending,
+      conflict: null,
       error,
       summary: null,
       existing: null,
@@ -379,6 +423,8 @@ export class CloudStore {
       if (this.state.scope !== owner)
         throw new CloudError('The deck source changed.')
       if (!change) return this.refresh()
+      this.patch({ conflict: this.readConflict(owner) })
+      if (this.state.conflict) throw this.conflictError()
       if (this.state.phase === 'loading')
         throw new CloudError('Wait for the cloud deck to finish opening.')
       if (this.state.phase === 'offline')
@@ -399,7 +445,7 @@ export class CloudStore {
       )
         throw new CloudError(
           'The cloud deck changed in another browser while this form was open. Your draft is still here. Copy anything you need, then cancel and reopen the current task.',
-          '40001'
+          'PT409'
         )
       const after = structuredClone(before.deck),
         now = new Date()
@@ -477,16 +523,17 @@ export class CloudStore {
           // Status serializes on the original transaction lock. A missing receipt
           // plus an advanced revision proves this stale request cannot apply later.
           if(!status.error && status.data?.applied===false && status.data.snapshot?.owner_id===p.owner && Number.isSafeInteger(status.data.snapshot.revision) && status.data.snapshot.revision>p.revision)
-            failure=new CloudError('The transaction was not applied: the cloud deck changed while this draft was open. Review the saved task and reopen before editing.','40001')
+            failure=new CloudError('The transaction was not applied: the cloud deck changed while this draft was open. Review the saved task and reopen before editing.','PT409')
         }catch{/* Preserve the original request ID until a receipt can be checked. */}
       }
       const code=failure instanceof CloudError?failure.code:''
       // Release only a newly prepared request known never to have reached sync.
       // A preflight failure on a RETRY must retain the original unknown request.
+      if (failure instanceof CloudError && failure.outcome === 'conflict') this.retainConflict(p)
       if((!sent&&!retrying)||(code==='PHOTO'&&!retrying)||(sent && failure instanceof CloudError && ['conflict','rejected'].includes(failure.outcome)))this.savePending(null,p.owner,p.id)
       this.recordOutcome(p,failure instanceof CloudError?failure.outcome:'unknown',code)
       this.patch({
-        phase: 'error',
+        phase: this.state.conflict ? 'conflict' : 'error',
         error:
           failure instanceof Error ? failure.message : 'Cloud save could not be confirmed.'
       })
@@ -509,6 +556,8 @@ export class CloudStore {
     const owner = this.owner(),
       epoch = this.epoch,
       p = this.state.pending ?? this.readPending(owner)
+    this.patch({ conflict: this.readConflict(owner) })
+    if (this.state.conflict) throw this.conflictError()
     if (!p) return this.refresh()
     if (this.state.phase === 'saving')
       throw new CloudError('A cloud save is already in progress.')
@@ -532,8 +581,8 @@ export class CloudStore {
         'The pending save could not be verified. Retry after reconnecting.'
       )
     if(resolved.data.snapshot?.owner_id===owner && resolved.data.snapshot.revision>p.revision){
-      this.savePending(null,owner,p.id);this.recordOutcome(p,'conflict','40001')
-      const conflict=new CloudError('The original transaction was not applied because the cloud changed. Your draft is still here. Reopen the saved task before editing.','40001');this.patch({phase:'error',error:conflict.message});throw conflict
+      this.retainConflict(p);this.savePending(null,owner,p.id);this.recordOutcome(p,'conflict','PT409')
+      const conflict=new CloudError('The original transaction was not applied because the cloud changed. Your draft is still here. Reopen the saved task before editing.','PT409');this.patch({phase:'conflict',error:conflict.message});throw conflict
     }
     if (p.operation === 'import') {
       const saved = await transfer(owner, undefined, p.id)
@@ -550,8 +599,8 @@ export class CloudStore {
   holdsPhoto(id: string, scope = photoScope()) {
     const owner = scope.startsWith('.account-') ? scope.slice(9) : undefined
     return owner
-      ? this.readPendings(owner).some(
-          (p) => (p.args.task as D.Task | undefined)?.photoId === id
+      ? [...this.readPendings(owner), ...[this.readConflict(owner)].filter((p): p is CloudRequest => !!p)].some(
+          (p) => p.operation === 'import' ? photoIds(p.args.deck as D.Deck).includes(id) : (p.args.task as D.Task | undefined)?.photoId === id
         )
       : (this.state.pending?.args.task as D.Task | undefined)?.photoId === id
   }
@@ -630,6 +679,8 @@ export class CloudStore {
       throw new CloudError('Review the import summary first.')
     if (this.state.phase === 'saving')
       throw new CloudError('Import is already in progress.')
+    this.patch({ conflict: this.readConflict(owner) })
+    if (this.state.conflict) throw this.conflictError()
     if (!retry && this.readPending(owner))
       throw new CloudError(
         'Retry the pending import instead of starting another one.'
@@ -673,11 +724,13 @@ export class CloudStore {
       return s
     } catch (e) {
       if (epoch === this.epoch) {
+        if (e instanceof CloudError && e.outcome === 'conflict') this.retainConflict(p)
         if (
           e instanceof CloudError &&
           (e.code === 'PHOTO' ||
             (sent &&
               [
+                'PT409',
                 '40001',
                 '23514',
                 '23503',
@@ -690,7 +743,7 @@ export class CloudStore {
         )
           this.savePending(null, owner, p.id)
         this.patch({
-          phase: 'error',
+          phase: this.state.conflict ? 'conflict' : 'error',
           error:
             e instanceof Error
               ? e.message
@@ -723,7 +776,7 @@ export class CloudStore {
         'Wait for the active save before cleaning up photos.'
       )
     const { api, s } = await this.readFor(owner, epoch),
-      pendings = this.readPendings(owner),
+      pendings = [...this.readPendings(owner), ...[this.readConflict(owner)].filter((p): p is CloudRequest => !!p)],
       protectedPhotos = pendings.flatMap((p) =>
         p.operation === 'import'
           ? photoIds(p.args.deck as D.Deck)

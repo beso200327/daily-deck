@@ -239,6 +239,7 @@ test('two browsers use revision conflicts instead of overwriting edits or comple
     )
   ).toBe('0')
   await refresh(p)
+  await p.getByRole('button', { name: 'Review current cloud deck', exact: true }).click()
   await expect(active(p).locator('h2')).toHaveText('New first')
   await p.getByRole('button', { name: 'Later', exact: true }).click()
   await expect(active(p).locator('h2')).toHaveText('A revised')
@@ -506,21 +507,19 @@ test('interrupted photo upload and cleanup can be retried without deleting histo
   await photo(page)
   b.state.failUploadAt = 2
   await page.getByRole('button', { name: 'Save task', exact: true }).click()
-  await expect(
-    page.getByRole('button', { name: 'Retry pending cloud save', exact: true })
-  ).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Save task', exact: true })).toBeEnabled()
   expect(b.bytes.size).toBe(1)
-  await page
-    .getByRole('button', { name: 'Retry pending cloud save', exact: true })
-    .click()
-  await expect(page.getByRole('dialog')).toContainText(
-    'original save was confirmed'
-  )
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(page.getByLabel('Title', { exact: true })).toHaveValue('Retried photo')
+  await page.getByRole('button', { name: 'Save task', exact: true }).click()
   await expect(
     active(page).getByRole('img', { name: 'Task photo' })
   ).toBeVisible()
-  expect(b.bytes.size).toBe(2)
+  // The partial first upload remains orphaned until explicit cleanup.
+  expect(b.bytes.size).toBe(3)
+  await account(page)
+  await page.getByRole('button', { name: 'Clean up unused cloud photos', exact: true }).click()
+  await expect.poll(() => b.bytes.size).toBe(2)
+  await close(page)
   const { p, c } = await secondPage(browser, b)
   await openCloud(p)
   let release!: () => void
@@ -540,6 +539,7 @@ test('interrupted photo upload and cleanup can be retried without deleting histo
   expect(b.bytes.size).toBe(4)
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   await account(page)
+  await page.getByRole('dialog', { name: 'Your account', exact: true }).getByRole('button', { name: 'Review current cloud deck', exact: true }).click()
   b.state.failDelete = true
   await page
     .getByRole('button', { name: 'Clean up unused cloud photos', exact: true })
@@ -688,7 +688,7 @@ test('rejected cross-device save stays visible after queued/background refresh a
  await p.getByRole('button',{name:'Save task',exact:true}).click()
  await expect(active(p).locator('h2')).toHaveText('phone edit')
  release();b.state.holdSave=null
- expect((await (await rejected).json()).code).toBe('40001')
+ expect((await (await rejected).json()).code).toBe('PT409')
  const dialog=page.getByRole('dialog',{name:'Edit task',exact:true}),alert=dialog.getByRole('alert')
  await expect(alert).toContainText('changed in another browser')
  await expect(alert).toBeInViewport()

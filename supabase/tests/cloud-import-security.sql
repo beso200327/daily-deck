@@ -15,7 +15,7 @@ select test_support.expect_error($q$select public.daily_deck_sync(auth.uid(),'re
 select test_support.expect_error('delete from public.daily_deck_occurrences',array['42501'],'historical occurrences have no direct DELETE grant');
 select test_support.expect_error('update public.daily_deck_events set deck_order=0',array['42501'],'historical events have no direct UPDATE grant');
 select test_support.expect_error('insert into public.daily_deck_schedule_versions default values',array['42501'],'schedule writes require trusted transaction');
-select test_support.expect_error($q$select public.daily_deck_sync(auth.uid(),'save',gen_random_uuid(),0,'{"localDay":"2000-01-01","task":{}}','UTC')$q$,array['40001'],'stale local date cannot backdate an ordinary action');
+select test_support.expect_error($q$select public.daily_deck_sync(auth.uid(),'save',gen_random_uuid(),0,'{"localDay":"2000-01-01","task":{}}','UTC')$q$,array['PT409'],'stale local date cannot backdate an ordinary action');
 select test_support.expect_error($q$select public.daily_deck_sync(auth.uid(),'read',gen_random_uuid(),0,'{}','UTC;delete from auth.users')$q$,array['22023'],'timezone input is not executable SQL');
 reset role;
 set local role anon;

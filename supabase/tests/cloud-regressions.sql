@@ -54,7 +54,7 @@ select test_support.assert_true((select bool_and(title='Every day') from public.
 select test_support.cloud('delete','{"taskId":"aaaaaaaa-0000-0000-0000-000000000003"}');
 select test_support.assert_true((select count(*)=2 from public.daily_deck_events where action='delete'),'postponed today and pre-generated future occurrences both deleted');
 select test_support.assert_true((select count(*)=1 from public.daily_deck_events where action='done'),'habit deletion never counts as completion');
-select test_support.expect_error('select test_support.cloud(''undo'',jsonb_build_object(''eventId'',(select id from public.daily_deck_events where action=''later'' and occurrence_id=current_setting(''test.habitcard'')::uuid)))',array['40001'],'deleted habit cannot be revived by Undo');
+select test_support.expect_error('select test_support.cloud(''undo'',jsonb_build_object(''eventId'',(select id from public.daily_deck_events where action=''later'' and occurrence_id=current_setting(''test.habitcard'')::uuid)))',array['PT409'],'deleted habit cannot be revived by Undo');
 select public.daily_deck_sync(auth.uid(),'read',gen_random_uuid(),0,'{}','Pacific/Kiritimati');
 select public.daily_deck_sync(auth.uid(),'read',gen_random_uuid(),0,'{}','Pacific/Honolulu');
 select test_support.assert_true((select count(*)=count(distinct(item_id,scheduled_on)) from public.daily_deck_occurrences),'timezone changes never duplicate civil-date pairs');

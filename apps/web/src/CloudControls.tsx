@@ -56,7 +56,7 @@ export function CloudControls() {
         <button
           type="button"
           className="secondary"
-          disabled={saving || !!s.pending}
+          disabled={saving || !!s.pending || !!s.conflict}
           onClick={() => void run(() => cloud.open())}
         >
           Open cloud deck without importing
@@ -115,6 +115,7 @@ export function CloudControls() {
           it.
         </p>
       )}
+      {s.conflict && <div className="error-banner" role="status"><strong>A cloud change needs review.</strong><p>Your rejected draft is preserved. Review the saved cloud deck, then reopen the task before saving again. The rejected change will not be replayed.</p><button type="button" className="secondary" disabled={saving} onClick={() => void run(() => cloud.reviewConflict())}>Review current cloud deck</button></div>}
       <div className="photo-actions">
         {s.scope !== 'local' && (
           <button

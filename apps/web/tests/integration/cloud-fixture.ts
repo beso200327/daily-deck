@@ -218,14 +218,14 @@ export function backend() {
       const text =
         e && typeof e === 'object' && 'stderr' in e ? String(e.stderr) : ''
       const code = /ERROR:\s+([0-9A-Z]{5}):/.exec(text)?.[1] ?? 'XX000'
-      if(code==='40001'&&state.abortConflictOnce){state.abortConflictOnce=false;await route.abort();return true}
+      if(['PT409','40001'].includes(code)&&state.abortConflictOnce){state.abortConflictOnce=false;await route.abort();return true}
       return send(
         {
           code,
           message: 'Isolated database rejected the request',
-          statusCode: code === '23505' ? '409' : '400'
+          statusCode: ['23505','PT409'].includes(code) ? '409' : '400'
         },
-        code === '23505' ? 409 : 400
+        ['23505','PT409'].includes(code) ? 409 : 400
       )
     }
   }

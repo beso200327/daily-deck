@@ -22,7 +22,7 @@ select set_config('test.saved',test_support.cloud('save',current_setting('test.c
 select test_support.assert_true(jsonb_array_length(current_setting('test.saved')::jsonb->'deck'->'cards')=1,'selected weekday creates exactly one immediate occurrence');
 select test_support.assert_true((test_support.cloud('save',current_setting('test.create')::jsonb,0,current_setting('test.req')::uuid)->>'revision')::bigint=1,'same request replays without duplicate write');
 select test_support.expect_error($q$select test_support.cloud('save',current_setting('test.create')::jsonb||'{"extra":true}'::jsonb,0,current_setting('test.req')::uuid)$q$,array['23505'],'request ID cannot change payload');
-select test_support.expect_error('select test_support.cloud(''save'',current_setting(''test.create'')::jsonb,0)',array['40001'],'stale second-device write rejected');
+select test_support.expect_error('select test_support.cloud(''save'',current_setting(''test.create'')::jsonb,0)',array['PT409'],'stale second-device write rejected');
 select test_support.assert_true(jsonb_array_length(test_support.cloud('read')->'deck'->'cards')=1,'repeated reconciliation does not duplicate');
 select set_config('test.card',(test_support.cloud('read')->'deck'->'cards'->0->>'id'),true);
 select test_support.cloud('action',jsonb_build_object('cardId',current_setting('test.card'),'action','later'));
@@ -33,7 +33,7 @@ select test_support.assert_true((select count(*)=2 from public.daily_deck_events
 select test_support.cloud('action',jsonb_build_object('cardId',current_setting('test.card'),'action','done'));
 select set_config('test.done',(select occurred_at::text from public.daily_deck_events where action='done'),true);
 select test_support.assert_true(jsonb_array_length(test_support.cloud('read')->'deck'->'cards')=1,'completed occurrence never regenerates');
-select test_support.expect_error('select test_support.cloud(''action'',jsonb_build_object(''cardId'',current_setting(''test.card''),''action'',''done''))',array['40001'],'duplicate completion with new request cannot affect another card');
+select test_support.expect_error('select test_support.cloud(''action'',jsonb_build_object(''cardId'',current_setting(''test.card''),''action'',''done''))',array['PT409'],'duplicate completion with new request cannot affect another card');
 select test_support.cloud('delete','{"taskId":"aaaaaaaa-0000-0000-0000-000000000001"}');
 select test_support.assert_true((select count(*)=1 from public.daily_deck_events where action='done' and occurred_at::text=current_setting('test.done')),'deletion retains completion timestamp');
 select test_support.assert_true((select archived from public.daily_deck_items),'habit archive frees active slot');
@@ -48,9 +48,9 @@ select public.daily_deck_complete_preview_onboarding(auth.uid(),true,true,false)
 select test_support.assert_true((select count(*)=0 from public.daily_deck_items),'B cannot read A items');
 select test_support.assert_true((select count(*)=0 from public.daily_deck_events),'B cannot read A history');
 select test_support.assert_true((test_support.cloud('read')->'deck'->'tasks')='[]','B snapshot has no A data');
-select test_support.expect_error('select test_support.cloud(''delete'',''{"taskId":"aaaaaaaa-0000-0000-0000-000000000001"}'')',array['40001'],'B cannot archive A ID');
-select test_support.expect_error('select test_support.cloud(''action'',jsonb_build_object(''cardId'',current_setting(''test.card''),''action'',''done''))',array['40001'],'B cannot complete A occurrence');
-select test_support.expect_error('select test_support.cloud(''undo'',jsonb_build_object(''eventId'',current_setting(''test.undo'')))',array['40001'],'B cannot undo A event');
+select test_support.expect_error('select test_support.cloud(''delete'',''{"taskId":"aaaaaaaa-0000-0000-0000-000000000001"}'')',array['PT409'],'B cannot archive A ID');
+select test_support.expect_error('select test_support.cloud(''action'',jsonb_build_object(''cardId'',current_setting(''test.card''),''action'',''done''))',array['PT409'],'B cannot complete A occurrence');
+select test_support.expect_error('select test_support.cloud(''undo'',jsonb_build_object(''eventId'',current_setting(''test.undo'')))',array['PT409'],'B cannot undo A event');
 select test_support.cloud('import','{"deck":{"version":1,"tasks":[],"cards":[]}}');
 select test_support.expect_error('select test_support.cloud(''import'',''{"deck":{"version":1,"tasks":[],"cards":[]}}'')',array['23514'],'completed empty import cannot be silently replaced later');
 select set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111',true);

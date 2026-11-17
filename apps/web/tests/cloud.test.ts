@@ -22,7 +22,7 @@ const task = (id = 'legacy-task', habit = false): D.Task => ({
   icon: 'neutral'
 })
 const empty = (): D.Deck => ({ version: 1, tasks: [], cards: [] })
-function fixture() {
+function fixture(conflictCode = '40001') {
   let owner: string | undefined = A,
     remote = empty(),
     revision = 0,
@@ -54,7 +54,7 @@ function fixture() {
         return { data: null, error: { code: '42501' } }
       if (p.p_operation !== 'read' && !receipts.has(p.p_request_id)) {
         if (p.p_revision !== revision)
-          return { data: null, error: { code: '40001' } }
+          return { data: null, error: { code: conflictCode } }
         if (p.p_operation === 'save')
           D.saveTask(remote, {
             ...p.p_args.task,
@@ -395,7 +395,7 @@ it('unknown request IDs survive failed receipt checks; an advanced revision late
  f.api.rpc.mockImplementationOnce(async()=>({data:null,error:{code:'FETCH_ERROR'}}))
  await expect(f.store.transact(d=>D.saveTask(d,task()))).rejects.toMatchObject({outcome:'unknown'})
  const id=f.store.snapshot().pending!.id;f.conflict();f.statusOffline(false)
- await expect(f.store.retry()).rejects.toMatchObject({code:'40001',outcome:'conflict'})
+ await expect(f.store.retry()).rejects.toMatchObject({code:'PT409',outcome:'conflict'})
  expect(f.store.snapshot().pending).toBeNull();expect(f.remote().tasks).toHaveLength(0)
  expect(f.map.get(`daily-deck.cloud.${A}.outcomes.v1`)).toContain(id)
 })
@@ -470,3 +470,55 @@ it('recovery distinguishes active writes and owner-gated loading from unresolved
  expect(needsCloudRecovery({...unknown,scope:'local'})).toBe(false)
  f.statusOffline(false);await f.store.retry();expect(needsCloudRecovery(f.store.snapshot())).toBe(false)
 })
+
+it.each(['PT409', '40001'])('durable conflict %s blocks repeated writes until explicit review', async code => {
+ const f=fixture(code);await f.store.open();const draft=task();f.conflict();
+ await expect(f.store.transact(d=>D.saveTask(d,draft))).rejects.toMatchObject({code,outcome:'conflict'});
+ const rejected=structuredClone(f.store.snapshot().conflict!);
+ expect(rejected.args.task).toMatchObject({title:draft.title,notes:draft.notes});
+ expect(rejected.revision).toBe(0);expect(f.store.snapshot().phase).toBe('conflict');
+ const calls=f.calls.length;
+ for(let i=0;i<20;i++){await expect(f.store.retry()).rejects.toMatchObject({outcome:'conflict'});await expect(f.store.transact(d=>D.saveTask(d,draft))).rejects.toMatchObject({outcome:'conflict'});}
+ expect(f.calls).toHaveLength(calls);await f.store.refresh();expect(f.store.snapshot().conflict).toEqual(rejected);
+ const reopened=f.reopen();await reopened.open();expect(reopened.snapshot().phase).toBe('conflict');expect(reopened.snapshot().conflict).toEqual(rejected);
+ await expect(reopened.retry()).rejects.toMatchObject({outcome:'conflict'});
+ expect(f.calls.filter(c=>c.p.p_operation==='save')).toHaveLength(1);
+ await reopened.reviewConflict();expect(reopened.snapshot().conflict).toBeNull();
+ await expect(reopened.transact(d=>D.saveTask(d,draft),0)).rejects.toMatchObject({outcome:'conflict'});
+ await reopened.transact(d=>D.saveTask(d,draft),1);
+ const writes=f.calls.filter(c=>c.p.p_operation==='save');expect(writes).toHaveLength(2);
+ expect(writes[1].p.p_request_id).not.toBe(rejected.id);expect(writes[1].p.p_revision).toBe(1);
+ expect(f.remote().tasks).toHaveLength(1);expect(f.map.get(D.STORAGE_KEY)).toBe('original guest deck');
+});
+it('failed review preserves conflict and never resubmits it',async()=>{
+ const f=fixture('PT409');await f.store.open();f.conflict();await expect(f.store.transact(d=>D.saveTask(d,task()))).rejects.toThrow();
+ const rejected=structuredClone(f.store.snapshot().conflict);f.offline(true);
+ await expect(f.store.reviewConflict()).rejects.toThrow();expect(f.store.snapshot().conflict).toEqual(rejected);
+ expect(f.calls.filter(c=>c.p.p_operation==='save')).toHaveLength(1);
+});
+it('conflict records are isolated by account and guest mode',async()=>{
+ const f=fixture('PT409');await f.store.open();f.conflict();await expect(f.store.transact(d=>D.saveTask(d,task()))).rejects.toThrow();
+ const id=f.store.snapshot().conflict!.id;f.identity(B);await f.store.open();expect(f.store.snapshot().conflict).toBeNull();
+ expect(f.map.get(`daily-deck.cloud.${A}.conflict.v1`)).toContain(id);
+ f.store.local();expect(f.store.snapshot().conflict).toBeNull();expect(f.map.get(D.STORAGE_KEY)).toBe('original guest deck');
+});
+it('storage failure preserves original pending request and review can later release it',async()=>{
+ const f=fixture('PT409');await f.store.open();f.conflict();const write=f.storage.setItem;
+ const spy=vi.spyOn(f.storage,'setItem').mockImplementation((key,value)=>{if(key.endsWith('.conflict.v1'))throw Error('Quota exceeded');write(key,value)});
+ await expect(f.store.transact(d=>D.saveTask(d,task()))).rejects.toThrow('could not retain');
+ expect(f.store.snapshot().phase).toBe('conflict');expect(f.store.snapshot().pending?.id).toBe(f.store.snapshot().conflict?.id);
+ spy.mockRestore();
+ // Retry can verify rejection and durably retain it, but must not submit a new mutation.
+ await expect(f.store.retry()).rejects.toMatchObject({outcome:'conflict'});
+ expect(f.calls.filter(c=>c.p.p_operation==='save')).toHaveLength(1);
+ await f.store.reviewConflict();expect(f.store.snapshot().pending).toBeNull();expect(f.store.snapshot().conflict).toBeNull();
+});
+it('local-mode pending import remains recoverable while ordinary guest writes do not show recovery',async()=>{
+ const {needsCloudRecovery}=await import('../src/cloud-store');const f=fixture();await f.store.open();f.drop();f.statusOffline(true);
+ await expect(f.store.transact(d=>D.saveTask(d,task()))).rejects.toThrow();
+ const state=f.store.snapshot();expect(needsCloudRecovery({...state,scope:'local'})).toBe(false);
+ const pending={...state.pending!,operation:'import'};
+ expect(needsCloudRecovery({...state,scope:'local',pending})).toBe(true);
+ expect(needsCloudRecovery({...state,scope:'local',pending,phase:'saving'})).toBe(false);
+ expect(needsCloudRecovery({...state,scope:'local',pending,conflict:pending})).toBe(false);
+});

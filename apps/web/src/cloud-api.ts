@@ -43,11 +43,12 @@ export type CloudRequest = {
   args: Record<string, unknown>
   timezone: string
 }
+export const isCloudConflict = (code: string) => code === 'PT409' || code === '40001'
 export class CloudError extends Error {
   constructor(
     message: string,
     public code = '',
-    public outcome: 'conflict'|'rejected'|'network'|'unknown'|'auth' = code==='40001'?'conflict':code==='42501'||code==='PGRST301'?'auth':code==='TIMEOUT'||code==='FETCH_ERROR'?'network':/^[0-9A-Z]{5}$/.test(code)?'rejected':'unknown'
+    public outcome: 'conflict'|'rejected'|'network'|'unknown'|'auth' = isCloudConflict(code)?'conflict':code==='42501'||code==='PGRST301'?'auth':code==='TIMEOUT'||code==='FETCH_ERROR'?'network':/^[0-9A-Z]{5}$/.test(code)?'rejected':'unknown'
   ) {
     super(message)
   }
@@ -62,7 +63,7 @@ export function cloudError(error: unknown) {
       'Cloud storage is not ready here. Keep using your local deck until setup is complete.',
       code,'rejected'
     )
-  if (code === '40001')
+  if (isCloudConflict(code))
     return new CloudError(
       'The cloud deck changed in another browser or a new local day began. Refresh, review the current card, and try again.',
       code
