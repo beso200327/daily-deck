@@ -1,3 +1,4 @@
+import { revealEditorOption, revealEditorActions } from '../editor-options'
 import {readFile} from 'node:fs/promises'
 import { test, expect, type Page, type Browser } from '@playwright/test'
 import { backend } from './cloud-fixture'
@@ -66,13 +67,13 @@ async function create(p: Page, title: string, habit = false) {
   await p.getByRole('button', { name: 'Add a task', exact: true }).click()
   if (habit)
     await p
-      .getByRole('button', { name: 'Recurring habit', exact: true })
+      .getByRole('button', { name: 'Habit', exact: true })
       .click()
   await p.getByLabel('Title', { exact: true }).fill(title)
-  await p.getByLabel('Notes').fill('Account-owned private notes')
+  await (await revealEditorOption(p, 'Notes')).getByLabel('Notes').fill('Account-owned private notes')
   await p
     .getByRole('button', {
-      name: habit ? 'Save habit' : 'Save task',
+      name: habit ? 'Add habit' : 'Add task',
       exact: true
     })
     .click()
@@ -112,7 +113,7 @@ async function photo(p: Page) {
     c.getContext('2d')!.fillRect(0, 0, 400, 200)
     return c.toDataURL('image/png').split(',')[1]
   })
-  await p.getByLabel('Choose task photo').setInputFiles({
+  await (await revealEditorOption(p, 'Photo or illustration')).getByLabel('Choose task photo').setInputFiles({
     name: 'private.png',
     mimeType: 'image/png',
     buffer: Buffer.from(bytes, 'base64')
@@ -130,7 +131,7 @@ test('login does not upload; confirmed import preserves a local backup and share
   await page.getByRole('button', { name: 'Add a task', exact: true }).click()
   await page.getByLabel('Title', { exact: true }).fill('Guest photo history')
   await photo(page)
-  await page.getByRole('button', { name: 'Save task', exact: true }).click()
+  await page.getByRole('button', { name: /^(?:Add task|Add habit|Save changes)$/, exact: true }).click()
   await expect(
     active(page).getByRole('img', { name: 'Task photo' })
   ).toBeVisible()
@@ -214,19 +215,19 @@ test('two browsers use revision conflicts instead of overwriting edits or comple
     .getByRole('button', { name: 'Edit current task', exact: true })
     .click()
   await page.getByLabel('Title', { exact: true }).fill('A revised')
-  await page.getByRole('button', { name: 'Save task', exact: true }).click()
+  await page.getByRole('button', { name: /^(?:Add task|Add habit|Save changes)$/, exact: true }).click()
   await expect(active(page).locator('h2')).toHaveText('A revised')
   // Focus refresh must not silently upgrade the base revision of an open form.
   await p.evaluate(() => window.dispatchEvent(new Event('focus')))
   await expect(active(p).locator('h2')).toHaveText('A revised')
-  await p.getByRole('button', { name: 'Save task', exact: true }).click()
+  await p.getByRole('button', { name: /^(?:Add task|Add habit|Save changes)$/, exact: true }).click()
   await expect(p.getByRole('dialog').last()).toContainText(
     'changed in another browser'
   )
   await expect(p.getByLabel('Title', { exact: true })).toHaveValue(
     'Stale B edit'
   )
-  await p.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await p.getByRole('button', { name: 'Close dialog', exact: true }).click()
   await p.evaluate(() => window.dispatchEvent(new Event('focus')))
   await expect(active(p).locator('h2')).toHaveText('A revised')
   await create(page, 'New first')
@@ -272,7 +273,7 @@ test('private photo originals/crops reach a second browser; replacement keeps hi
   await page.getByRole('button', { name: 'Add a task', exact: true }).click()
   await page.getByLabel('Title', { exact: true }).fill('Cloud photo')
   await photo(page)
-  await page.getByRole('button', { name: 'Save task', exact: true }).click()
+  await page.getByRole('button', { name: /^(?:Add task|Add habit|Save changes)$/, exact: true }).click()
   await expect(
     active(page).getByRole('img', { name: 'Task photo' })
   ).toBeVisible()
@@ -283,18 +284,18 @@ test('private photo originals/crops reach a second browser; replacement keeps hi
   await p
     .getByRole('button', { name: 'Edit current task', exact: true })
     .click()
-  await p.getByRole('button', { name: 'Adjust photo', exact: true }).click()
+  await (await revealEditorOption(p, 'Photo or illustration')).getByRole('button',{name:'Adjust photo', exact: true }).click()
   await expect(p.getByRole('dialog', { name: 'Adjust photo' })).toBeVisible()
   await p
     .getByRole('dialog', { name: 'Adjust photo' })
     .getByRole('button', { name: 'Cancel', exact: true })
     .click()
-  await p.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await p.getByRole('button', { name: 'Close dialog', exact: true }).click()
   await page
     .getByRole('button', { name: 'Edit current task', exact: true })
     .click()
   await photo(page)
-  await page.getByRole('button', { name: 'Save task', exact: true }).click()
+  await page.getByRole('button', { name: /^(?:Add task|Add habit|Save changes)$/, exact: true }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   expect(b.bytes.size).toBe(4)
   await account(page)
@@ -337,7 +338,7 @@ test('lost save and import responses retry idempotently; offline mode does not c
   await page.getByRole('button', { name: 'Add a task', exact: true }).click()
   await page.getByLabel('Title', { exact: true }).fill('Retry once')
   b.state.dropAfterCommit = true;b.state.statusOffline=true
-  await page.getByRole('button', { name: 'Save task', exact: true }).click()
+  await page.getByRole('button', { name: /^(?:Add task|Add habit|Save changes)$/, exact: true }).click()
   await expect(
     page.getByRole('button', { name: 'Retry pending cloud save', exact: true })
   ).toBeEnabled()
@@ -351,7 +352,7 @@ test('lost save and import responses retry idempotently; offline mode does not c
   await expect(page.getByRole('dialog')).toContainText(
     'original save was confirmed'
   )
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await page.getByRole('button', { name: 'Close dialog', exact: true }).click()
   await expect(active(page).locator('h2')).toHaveText('Retry once')
   expect(
     sql(
@@ -368,12 +369,12 @@ test('lost save and import responses retry idempotently; offline mode does not c
   await close(page)
   await page.getByRole('button', { name: 'Add a task', exact: true }).click()
   await page.getByLabel('Title', { exact: true }).fill('Offline draft')
-  await page.getByRole('button', { name: 'Save task', exact: true }).click()
+  await page.getByRole('button', { name: /^(?:Add task|Add habit|Save changes)$/, exact: true }).click()
   await expect(page.getByRole('dialog')).toContainText('Reconnect')
   await expect(page.getByLabel('Title', { exact: true })).toHaveValue(
     'Offline draft'
   )
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await page.getByRole('button', { name: 'Close dialog', exact: true }).click()
   b.state.offline = false
   await refresh(page)
   await create(page, 'Online again')
@@ -449,7 +450,7 @@ test('cloud habit creation, scheduling, deletion and mobile account controls pre
   await page
     .getByRole('button', { name: 'Edit current task', exact: true })
     .click()
-  await page.getByRole('button', { name: 'Delete habit', exact: true }).click()
+  await (await revealEditorActions(page)).getByRole('button',{name:'Delete habit', exact: true }).click()
   await page
     .getByRole('dialog', { name: 'Delete habit?', exact: true })
     .getByRole('button', { name: 'Delete habit', exact: true })
@@ -506,11 +507,11 @@ test('interrupted photo upload and cleanup can be retried without deleting histo
   await page.getByLabel('Title', { exact: true }).fill('Retried photo')
   await photo(page)
   b.state.failUploadAt = 2
-  await page.getByRole('button', { name: 'Save task', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Save task', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: /^(?:Add task|Add habit|Save changes)$/, exact: true }).click()
+  await expect(page.getByRole('button', { name: /^(?:Add task|Add habit|Save changes)$/, exact: true })).toBeEnabled()
   expect(b.bytes.size).toBe(1)
   await expect(page.getByLabel('Title', { exact: true })).toHaveValue('Retried photo')
-  await page.getByRole('button', { name: 'Save task', exact: true }).click()
+  await page.getByRole('button', { name: /^(?:Add task|Add habit|Save changes)$/, exact: true }).click()
   await expect(
     active(page).getByRole('img', { name: 'Task photo' })
   ).toBeVisible()
@@ -528,7 +529,7 @@ test('interrupted photo upload and cleanup can be retried without deleting histo
   await page.getByRole('button', { name: 'Add a task', exact: true }).click()
   await page.getByLabel('Title', { exact: true }).fill('Stale photo draft')
   await photo(page)
-  await page.getByRole('button', { name: 'Save task', exact: true }).click()
+  await page.getByRole('button', { name: /^(?:Add task|Add habit|Save changes)$/, exact: true }).click()
   await expect.poll(() => b.state.uploadStarted).toBe(true)
   await create(p, 'Concurrent insert')
   release()
@@ -537,7 +538,7 @@ test('interrupted photo upload and cleanup can be retried without deleting histo
     'changed in another browser'
   )
   expect(b.bytes.size).toBe(4)
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await page.getByRole('button', { name: 'Close dialog', exact: true }).click()
   await account(page)
   await page.getByRole('dialog', { name: 'Your account', exact: true }).getByRole('button', { name: 'Review current cloud deck', exact: true }).click()
   b.state.failDelete = true
@@ -572,7 +573,7 @@ test('an account change during a photo save cannot upload or write into the new 
   await page.getByRole('button', { name: 'Add a task', exact: true }).click()
   await page.getByLabel('Title', { exact: true }).fill('Interrupted A photo')
   await photo(page)
-  await page.getByRole('button', { name: 'Save task', exact: true }).click()
+  await page.getByRole('button', { name: /^(?:Add task|Add habit|Save changes)$/, exact: true }).click()
   await expect.poll(() => b.state.uploadStarted).toBe(true)
   async function switchTo(email: string) {
     await page.evaluate((s) => {
@@ -635,14 +636,14 @@ test('expired cloud authorization keeps the original request for reauthenticatio
   await page.getByRole('button', { name: 'Add a task', exact: true }).click()
   await page.getByLabel('Title', { exact: true }).fill('Authorized retry')
   b.state.expired = true
-  await page.getByRole('button', { name: 'Save task', exact: true }).click()
+  await page.getByRole('button', { name: /^(?:Add task|Add habit|Save changes)$/, exact: true }).click()
   await expect(page.getByRole('dialog')).toContainText(
     'Sign in to the same account'
   )
   await expect(page.getByLabel('Title', { exact: true })).toHaveValue(
     'Authorized retry'
   )
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await page.getByRole('button', { name: 'Close dialog', exact: true }).click()
   await account(page)
   await page.getByRole('button', { name: 'Sign out', exact: true }).click()
   b.state.expired = false
@@ -678,22 +679,22 @@ test('rejected cross-device save stays visible after queued/background refresh a
  const {p,c}=await secondPage(browser,b);await openCloud(p)
  for(const target of [page,p])await target.getByRole('button',{name:'Edit current task',exact:true}).click()
  await page.getByLabel('Title',{exact:true}).fill('computer edit')
- await page.getByLabel('Notes').fill('Keep this rejected desktop draft')
+ await (await revealEditorOption(page, 'Notes')).getByLabel('Notes').fill('Keep this rejected desktop draft')
  await p.getByLabel('Title',{exact:true}).fill('phone edit')
  let release!:()=>void;b.state.holdSaveTitle='computer edit';b.state.holdSave=new Promise<void>(r=>release=r)
  const rejected=page.waitForResponse(r=>r.url().endsWith('/rpc/daily_deck_sync')&&r.request().postDataJSON()?.p_args?.task?.title==='computer edit')
- await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await page.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true}).click()
  await expect(page.getByRole('button',{name:'Saving…',exact:true})).toBeVisible()
  await page.evaluate(()=>window.dispatchEvent(new Event('focus')))
- await p.getByRole('button',{name:'Save task',exact:true}).click()
+ await p.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true}).click()
  await expect(active(p).locator('h2')).toHaveText('phone edit')
  release();b.state.holdSave=null
  expect((await (await rejected).json()).code).toBe('PT409')
  const dialog=page.getByRole('dialog',{name:'Edit task',exact:true}),alert=dialog.getByRole('alert')
  await expect(alert).toContainText('changed in another browser')
  await expect(alert).toBeInViewport()
- const viewport=page.viewportSize()!;await page.setViewportSize({width:320,height:400});await expect(alert).toBeInViewport();await expect(page.getByRole('button',{name:'Save task',exact:true})).toBeInViewport();await page.setViewportSize(viewport)
- await expect(page.getByRole('button',{name:'Save task',exact:true})).toBeEnabled()
+ const viewport=page.viewportSize()!;await page.setViewportSize({width:320,height:400});await expect(alert).toBeInViewport();await expect(page.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true})).toBeInViewport();await page.setViewportSize(viewport)
+ await expect(page.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true})).toBeEnabled()
  await expect(page.getByLabel('Title',{exact:true})).toHaveValue('computer edit')
  await expect(page.getByLabel('Notes')).toHaveValue('Keep this rejected desktop draft')
  await expect(active(page).locator('h2')).toHaveText('phone edit')
@@ -703,7 +704,7 @@ test('rejected cross-device save stays visible after queued/background refresh a
  await page.getByRole('button',{name:'Back to my draft',exact:true}).click()
  await expect(page.getByLabel('Title',{exact:true})).toHaveValue('computer edit')
  // Reviewing/refetching never rebases a rejected draft. Another Save must still reject.
- await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await page.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true}).click()
  await expect(alert).toContainText('changed in another browser')
  await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async(text:string)=>{(window as any).copiedDraft=text}}}))
  await page.getByRole('button',{name:'Copy draft text',exact:true}).click()
@@ -721,14 +722,14 @@ test('sequential edits resolve successfully; a refreshed open stale form cannot 
  const {p,c}=await secondPage(browser,b);await openCloud(p)
  await page.getByRole('button',{name:'Edit current task',exact:true}).click()
  await page.getByLabel('Title',{exact:true}).fill('computer edit')
- await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await page.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true}).click()
  await expect(page.getByRole('dialog')).toHaveCount(0)
  await expect(active(page).locator('h2')).toHaveText('computer edit')
  await refresh(p)
  await p.getByRole('button',{name:'Edit current task',exact:true}).click()
  await expect(p.getByLabel('Title',{exact:true})).toHaveValue('computer edit')
  await p.getByLabel('Title',{exact:true}).fill('phone edit')
- await p.getByRole('button',{name:'Save task',exact:true}).click()
+ await p.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true}).click()
  await expect(p.getByRole('dialog')).toHaveCount(0)
  await expect(active(p).locator('h2')).toHaveText('phone edit')
  await refresh(page)
@@ -736,7 +737,7 @@ test('sequential edits resolve successfully; a refreshed open stale form cannot 
  await page.getByRole('button',{name:'Edit current task',exact:true}).click()
  await expect(page.getByLabel('Title',{exact:true})).toHaveValue('phone edit')
  await page.getByLabel('Title',{exact:true}).fill('Final reviewed edit')
- await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await page.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true}).click()
  await expect(page.getByRole('dialog')).toHaveCount(0)
  await expect(active(page).locator('h2')).toHaveText('Final reviewed edit')
  await c.close()
@@ -748,10 +749,10 @@ test('an unknown save outcome remains visible through refresh and retry confirms
  await page.getByRole('button',{name:'Edit current task',exact:true}).click()
  await page.getByLabel('Title',{exact:true}).fill('Saved but response lost')
  b.state.dropAfterCommit=true;b.state.statusOffline=true
- await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await page.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true}).click()
  const dialog=page.getByRole('dialog',{name:'Edit task',exact:true})
  await expect(dialog.getByRole('alert')).toContainText('Save not confirmed')
- await expect(page.getByRole('button',{name:'Save task',exact:true})).toBeDisabled()
+ await expect(page.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true})).toBeDisabled()
  await page.evaluate(()=>window.dispatchEvent(new Event('focus')))
  await expect(active(page).locator('h2')).toHaveText('Saved but response lost')
  await expect(dialog.getByRole('alert')).toContainText('Save not confirmed')
@@ -769,7 +770,7 @@ function unpackAccountTar(body:Buffer){const result=new Map<string,Buffer>();for
 
 test('account export downloads only the verified cloud owner including profile history and actual original/cropped files',async({page})=>{
  const b=backend();await b.install(page);await ready(page);const guest=await local(page);await openCloud(page)
- await page.getByRole('button',{name:'Add a task',exact:true}).click();await page.getByLabel('Title',{exact:true}).fill('Owned export task');await photo(page);await page.getByRole('button',{name:'Save task',exact:true}).click();await expect(active(page).locator('h2')).toHaveText('Owned export task')
+ await page.getByRole('button',{name:'Add a task',exact:true}).click();await page.getByLabel('Title',{exact:true}).fill('Owned export task');await photo(page);await page.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true}).click();await expect(active(page).locator('h2')).toHaveText('Owned export task')
  await page.getByRole('button',{name:'Done',exact:true}).click();await expect.poll(()=>sql("select count(*) from public.daily_deck_events where action='done'",'11111111-1111-1111-1111-111111111111')).toBe('1')
  sql("insert into public.daily_deck_items(owner_id,kind,title,created_on) values('22222222-2222-2222-2222-222222222222','today','Another user private title',current_date)")
  await account(page)
@@ -786,7 +787,7 @@ test('account export downloads only the verified cloud owner including profile h
 test('deletion preserves guest data, erases owner history/photos/receipts, survives Storage/Auth failures and hides other-device caches',async({page,browser},info)=>{
  const b=backend();await b.install(page);await ready(page);const guest=await local(page)
  await page.evaluate(async()=>{const r=indexedDB.open('daily-deck-images',2);r.onupgradeneeded=()=>{for(const name of ['photos','edits'])if(!r.result.objectStoreNames.contains(name))r.result.createObjectStore(name)};const db=await new Promise<IDBDatabase>(resolve=>r.onsuccess=()=>resolve(r.result));const tx=db.transaction('photos','readwrite');tx.objectStore('photos').put(new Blob(['guest photo bytes']),'guest-preserved');await new Promise(resolve=>tx.oncomplete=resolve);db.close()})
- await openCloud(page);await page.getByRole('button',{name:'Add a task',exact:true}).click();await page.getByLabel('Title',{exact:true}).fill('Erase owner history');await photo(page);await page.getByRole('button',{name:'Save task',exact:true}).click();await expect(active(page).locator('h2')).toHaveText('Erase owner history')
+ await openCloud(page);await page.getByRole('button',{name:'Add a task',exact:true}).click();await page.getByLabel('Title',{exact:true}).fill('Erase owner history');await photo(page);await page.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true}).click();await expect(active(page).locator('h2')).toHaveText('Erase owner history')
  await page.getByRole('button',{name:'Done',exact:true}).click();await expect.poll(()=>sql("select count(*) from public.daily_deck_events where action='done'",'11111111-1111-1111-1111-111111111111')).toBe('1')
  await create(page,'Pending owner task')
  const {p,c}=await secondPage(browser,b);await openCloud(p);await account(page)
@@ -826,8 +827,8 @@ test('a lost conflict response reconciles to confirmed stale-draft rejection rat
  const b=backend();await b.install(page);await ready(page);await openCloud(page);await create(page,'Original shared task')
  const {p,c}=await secondPage(browser,b);await openCloud(p);await p.getByRole('button',{name:'Edit current task',exact:true}).click();await p.getByLabel('Title',{exact:true}).fill('Phone test')
  await p.evaluate(()=>{window.addEventListener('focus',e=>e.stopImmediatePropagation(),true);document.addEventListener('visibilitychange',e=>e.stopImmediatePropagation(),true)})
- await page.getByRole('button',{name:'Edit current task',exact:true}).click();await page.getByLabel('Title',{exact:true}).fill('Computer test');await page.getByRole('button',{name:'Save task',exact:true}).click();await expect(active(page).locator('h2')).toHaveText('Computer test')
- b.state.abortConflictOnce=true;await p.getByRole('button',{name:'Save task',exact:true}).click();await expect(p.getByRole('dialog',{name:'Edit task'}).getByRole('alert')).toContainText('Save conflict')
+ await page.getByRole('button',{name:'Edit current task',exact:true}).click();await page.getByLabel('Title',{exact:true}).fill('Computer test');await page.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true}).click();await expect(active(page).locator('h2')).toHaveText('Computer test')
+ b.state.abortConflictOnce=true;await p.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true}).click();await expect(p.getByRole('dialog',{name:'Edit task'}).getByRole('alert')).toContainText('Save conflict')
  await expect(p.getByLabel('Title',{exact:true})).toHaveValue('Phone test');expect(sql("select count(*) from public.daily_deck_items where title='Phone test'",'11111111-1111-1111-1111-111111111111')).toBe('0')
  expect(await p.evaluate(()=>localStorage.getItem('daily-deck.cloud.11111111-1111-1111-1111-111111111111.outcomes.v1'))).toContain('conflict');await c.close()
 })
@@ -847,20 +848,20 @@ test('pre-dispatch disconnect preserves draft, permits retry, and never locks cl
  await page.getByRole('button',{name:'Edit current task',exact:true}).click()
  await page.getByLabel('Title',{exact:true}).fill('Internet test')
  b.state.verificationOffline=true
- await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await page.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true}).click()
  await expect(page.getByRole('dialog').getByRole('alert').first()).toContainText('Save not sent',{timeout:30000})
  await expect(page.getByLabel('Title',{exact:true})).toHaveValue('Internet test')
  expect(await page.evaluate(()=>Object.keys(localStorage).filter(k=>k.includes('.pending.')))).toHaveLength(0)
  await page.screenshot({path:`/tmp/dailydeck-offline-draft-${info.project.name}.png`})
  b.state.verificationOffline=false
  await page.evaluate(()=>window.dispatchEvent(new Event('online')))
- await expect(page.getByRole('button',{name:'Save task',exact:true})).toBeEnabled()
- await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await expect(page.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true})).toBeEnabled()
+ await page.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true}).click()
  await expect(page.getByRole('dialog')).toHaveCount(0);await expect(active(page).locator('h2')).toHaveText('Internet test')
  await page.getByRole('button',{name:'Edit current task',exact:true}).click()
  await page.getByLabel('Title',{exact:true}).fill('Unsent draft closed')
  b.state.verificationOffline=true
- await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await page.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true}).click()
  await expect(page.getByRole('dialog').getByRole('alert').first()).toContainText('Save not sent',{timeout:30000})
  await page.getByRole('dialog').getByRole('button',{name:'Close dialog',exact:true}).click()
  b.state.verificationOffline=false
@@ -878,7 +879,7 @@ for(const committed of [true,false])test(`legacy unresolved request is recoverab
  const b=backend();await b.install(page);await ready(page);await openCloud(page);await create(page,'Original cloud task')
  await page.getByRole('button',{name:'Edit current task',exact:true}).click();await page.getByLabel('Title',{exact:true}).fill('Recovered original transaction')
  b.state.dropAfterCommit=committed;b.state.dropBeforeCommit=!committed;b.state.statusOffline=true
- await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await page.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true}).click()
  await expect(page.getByRole('button',{name:'Retry pending cloud save',exact:true})).toBeEnabled()
  const original=await page.evaluate(()=>Object.keys(localStorage).find(k=>k.includes('.pending.')))
  await page.getByRole('dialog').getByRole('button',{name:'Close dialog',exact:true}).click()

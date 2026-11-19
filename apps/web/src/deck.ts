@@ -3,7 +3,6 @@ import {storageSuffix} from './environment'
 export type Day = string
 export type Action = 'done' | 'later' | 'skip' | 'delete' | 'undo' | 'reorder'
 export type Outcome = 'completed' | 'postponed' | 'skipped' | 'missed' | 'pending' | 'deleted'
-export type Visual = 'neutral' | 'walk' | 'read' | 'water' | 'focus' | 'stretch'
 export type Appearance = { day: Day; icon: Visual; photoId?: string }
 export type ScheduleVersion = {effectiveFrom:Day;weekdays:number[];title:string;notes:string;minutes:number|null;edited?:boolean}
 export type DeadlineVersion={effectiveFrom:Day;deadline?:string;remind?:boolean}
@@ -11,7 +10,12 @@ export type Task = {deadline?:string;remind?:boolean;deadlineVersions?:DeadlineV
 export type Event = { sequence?: number; id: string; action: Action; at: string; day: Day; order: number; target?: string }
 export type Card = { deadline?:string;remind?:boolean; icon?: Visual; photoId?: string; appearances?: Appearance[]; id: string; taskId: string; title: string; notes: string; minutes: number | null; habit: boolean; day: Day; initialOrder: number; events: Event[] }
 export type Deck = { version: 1; tasks: Task[]; cards: Card[] }
-export const visualNames: Record<Visual, string> = { neutral: 'Simple card', walk: 'Walking', read: 'Reading', water: 'Water', focus: 'Focus', stretch: 'Stretch' }
+export const visualNames = {
+  neutral: 'Simple card', walk: 'Walk', read: 'Read', water: 'Drink water', focus: 'Focus', stretch: 'Stretch',
+  journal: 'Journal', meditate: 'Meditate', exercise: 'Exercise', 'water-plants': 'Water plants',
+  cook: 'Cook', groceries: 'Groceries', call: 'Call', tidy: 'Tidy', sleep: 'Sleep', learn: 'Learn'
+} as const
+export type Visual = keyof typeof visualNames
 export const isHabit = (task: Task) => task.kind === 'habit' || (task.kind === undefined && task.weekdays.length > 0)
 export function appearance(card: Card, day = dayKey()): { icon: Visual; photoId?: string } {
   const snapshot = card.appearances?.filter(a => a.day <= day).at(-1)

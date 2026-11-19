@@ -112,3 +112,34 @@ html[data-modal-open=true] body,html[data-modal-open=true] .app-shell{min-inline
 .account-delete-action{background:#923929;color:#fff}.account-delete-action:hover:not(:disabled){background:#7e3025}
 
 .cloud-save-indicator{position:absolute;top:calc(100% + 4px);right:0;font-size:.75rem;color:var(--muted);white-space:nowrap;pointer-events:none}
+
+/* Compact task and habit editor */
+.modal-header-actions { display: flex; align-items: center; gap: 4px; }
+.compact-editor { display: grid; gap: 10px; }
+.modal .compact-editor > label { margin: 4px 0 8px; color: var(--muted); font-weight: 500; }
+.compact-editor > label > input { border-radius: 16px; }
+.compact-editor .type-choice { margin-bottom: 4px; }
+.compact-editor .type-choice button[aria-pressed=true] { background: #e9edc9; }
+.editor-option { border-radius: 19px; background: #f5f4e7; }
+.editor-option[open], .editor-option:hover { background: #f0f1df; }
+.editor-option > summary { display: flex; align-items: center; gap: 12px; padding: 10px 13px; min-height: 57px; cursor: pointer; list-style: none; }
+.editor-option > summary::-webkit-details-marker, .editor-more > summary::-webkit-details-marker { display: none; }
+.editor-option-icon, .editor-option-chevron { display: flex; flex: none; color: var(--muted); }
+.editor-option-icon { width: 34px; height: 34px; align-items: center; justify-content: center; border-radius: 50%; background: #e9edcf; }
+.editor-option-copy { display: grid; gap: 4px; min-width: 0; flex: 1; }
+.editor-option-copy strong { font-size: 14px; font-weight: 500; }
+.editor-option-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.editor-option[open] > summary .editor-option-chevron { transform: rotate(90deg); }
+.editor-option-thumbnail { display: grid; place-items: center; width: 42px; height: 42px; background: #eef0df; border-radius: 9px; overflow: hidden; flex: none; }
+.editor-option-thumbnail .task-visual.small { width: 42px; height: 42px; min-width: 0; }
+.editor-option-content { padding: 0 13px 12px; }
+.modal .editor-option-content fieldset, .modal .editor-option-content > label { margin: 0; }
+.editor-option-content .photo-picker > .task-visual { margin-top: 0; }
+.editor-more { position: relative; }
+.editor-more > summary { display: grid; place-items: center; list-style: none; cursor: pointer; }
+.editor-more > button { position: absolute; top: 100%; right: 0; display: flex; align-items: center; gap: 8px; white-space: nowrap; background: #fffdf6; border: 1px solid var(--line); padding: 12px; border-radius: 10px; z-index: 2; }
+.modal-footer .editor-footer-actions > button[type=submit] { grid-column: 1 / -1; width: 100%; border-radius: 999px; background: #e9edc9; color: var(--ink); }
+.modal-footer .editor-footer-actions > button[type=submit]:disabled { background: #f1f0e4; color: var(--muted); }
+.task-visual > img.deck-illustration { object-fit: contain; }
+.neutral-art img { width: 50%; height: auto; }
+.nav-item > img { display: block; flex: none; }

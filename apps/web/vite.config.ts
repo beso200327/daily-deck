@@ -1,7 +1,7 @@
 import { defineConfig, loadEnv } from 'vite'
 import {readSupabaseConfiguration} from './src/supabase-config'
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 // Every production build gets an immutable shell cache. New workers wait for explicit consent.
 export default defineConfig(({mode,command})=>{
  const configuration=readSupabaseConfiguration(loadEnv(mode,process.cwd(),'VITE_SUPABASE_'))
@@ -12,9 +12,15 @@ export default defineConfig(({mode,command})=>{
   name:'daily-deck-offline-shell',
   generateBundle(_options,bundle) {
     const assets=Object.keys(bundle).filter(name=>!name.endsWith('.map'))
-    const staticInputs=['index.html','public/manifest.webmanifest','public/icon.svg','public/pwa-192.png','public/pwa-512.png','public/apple-touch-icon.png','public/THIRD-PARTY-NOTICES.txt'].map(path=>readFileSync(path).toString('base64')).join('')
+    const staticPaths = [
+      'manifest.webmanifest', 'icon.svg', 'pwa-192.png', 'pwa-512.png',
+      'apple-touch-icon.png', 'THIRD-PARTY-NOTICES.txt',
+      ...readdirSync('public/deck-art').filter(name => name.endsWith('.svg')).sort().map(name => `deck-art/${name}`)
+    ]
+    const staticInputs = ['index.html', ...staticPaths.map(path => `public/${path}`)]
+      .map(path => readFileSync(path).toString('base64')).join('')
     const fingerprint=createHash('sha256').update(staticInputs+JSON.stringify(assets)+JSON.stringify(Object.values(bundle).map(b=>b.type==='chunk'?b.code:b.source))).digest('hex').slice(0,16)
-    const urls=['/',...assets.filter(name=>name!=='index.html').map(name=>`/${name}`),'/manifest.webmanifest','/icon.svg','/pwa-192.png','/pwa-512.png','/apple-touch-icon.png','/THIRD-PARTY-NOTICES.txt']
+    const urls=['/',...assets.filter(name=>name!=='index.html').map(name=>`/${name}`),...staticPaths.map(path => `/${path}`)]
     this.emitFile({type:'asset',fileName:'sw.js',source:`
 const CACHE='daily-deck-shell-${fingerprint}';
 const URLS=${JSON.stringify(urls)};

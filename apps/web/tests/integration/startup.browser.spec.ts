@@ -69,7 +69,7 @@ test('populated cloud reload hides cached cards until ownership and read resolve
  await expect(page.getByRole('button',{name:'Add a task',exact:true})).toBeVisible()
  await page.getByRole('button',{name:'Add a task',exact:true}).click()
  await page.getByLabel('Title',{exact:true}).fill('Private cloud task')
- await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await page.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true}).click()
  await expect(page.getByTestId('active-card')).toContainText('Private cloud task')
  let release!:()=>void;b.state.hold=new Promise<void>(r=>release=r)
  await page.reload()
@@ -90,7 +90,7 @@ test('account switch gates previous data during delayed verification and restore
  await page.goto('/')
  await page.getByRole('button',{name:'Add a task',exact:true}).click()
  await page.getByLabel('Title',{exact:true}).fill('Only account A')
- await page.getByRole('button',{name:'Save task',exact:true}).click()
+ await page.getByRole('button',{name:/^(?:Add task|Add habit|Save changes)$/,exact:true}).click()
  await expect(page.getByTestId('active-card')).toContainText('Only account A')
  let release!:()=>void;f.fixture.holdUser=new Promise<void>(r=>release=r)
  await page.evaluate(s=>{
